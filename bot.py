@@ -13,7 +13,7 @@ API_ID = 105
 API_HASH = '38545ba6'
 BOT_TOKEN = "8250378472:AAFH_JgQVbOUnCUvYQaOnLMnrWi4G_MCDZY"
 ADMIN_ID = 6936293942
-CHECKER_API_URL = 'http://afuonac.up.railway.app/shopify_parallel'
+CHECKER_API_URL = 'http://85.90.216.140//shopify_parallel'
 
 
 PREMIUM_USERS_FILE = "premium_users.txt"
