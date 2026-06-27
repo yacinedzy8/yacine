@@ -1,4 +1,4 @@
-telethon
+python-telegram-bot>=20.0
 aiohttp
 aiofiles
 requests
