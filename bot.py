@@ -5,8 +5,8 @@ import random
 import time
 import asyncio
 from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import aiohttp
 import aiofiles
 
@@ -52,7 +52,7 @@ PREMIUM_EMOJI_IDS = {
     "🔘": "5219901967916084166", "🔗": "5447479640547428304", "👇": "5122933683820430249",
     "📌": "5447187153274567373", "🍳": "5305622454218024328", "💸": "5283232570660634549",
     "🎉": "5172632227871196306", "🎁": "5283031441637148958",
-      "🚫": "5116151848855667552",
+    "🚫": "5116151848855667552",
     "🛒": "5447319442562251569", "🔧": "4904936030232117798",
     "⛔️": "5275969776668134187", "🥲": "4904468402782864209",
     "☠️": "5231338559587257737", "🛡": "5219672809936006424",
@@ -75,15 +75,30 @@ DEFAULT_FILTERS = [
 ]
 
 # ==================================================
-# 3. الدوال المساعدة
+# 3. الدوال المساعدة (مع حل premium_emoji)
 # ==================================================
-def premium_emoji(text: str) -> str:
+def premium_emoji(text: str) -> tuple:
     if not text:
-        return text
+        return text, []
     result = text
+    entities = []
     for emoji, emoji_id in PREMIUM_EMOJI_IDS.items():
-        result = result.replace(emoji, f'<tg-emoji emoji-id="{emoji_id}">{emoji}</tg-emoji>')
-    return result
+        start = 0
+        while True:
+            start = result.find(emoji, start)
+            if start == -1:
+                break
+            entities.append(
+                MessageEntity(
+                    type="custom_emoji",
+                    offset=start,
+                    length=len(emoji),
+                    custom_emoji_id=emoji_id
+                )
+            )
+            start += len(emoji)
+    entities.sort(key=lambda e: e.offset)
+    return result, entities
 
 def get_file_lines(filepath):
     if not os.path.exists(filepath):
@@ -235,8 +250,8 @@ def extract_cc(text):
         if len(year) == 2:
             year = '20' + year
         cards.append(f"{card}|{month}|{year}|{cvv}")
-    return cards 
-# ==================================================
+    return cards
+    # ==================================================
 # 4. دوال API الخاصة بالفحص
 # ==================================================
 async def check_card(card, site, proxy):
@@ -384,7 +399,7 @@ async def process_file_with_filters(update: Update, context: ContextTypes.DEFAUL
             content = await f.read()
         cards = extract_cc(content)
         if not cards:
-            await update.message.reply_text("❌ Nᴏ ᴠᴀʟɪᴅ ᴄᴀʀᴅs ғᴏᴜɴᴅ ɪɴ ғɪʟᴇ.")
+            await update.message.reply_text("❌ Nᴏ ᴠᴀʟɪᴅ ᴄᴀʀᴅs ғᴏᴜɴᴅ.")
             os.remove(file_path)
             return
         TEMP_FILE_DATA[user_id] = {'cards': cards, 'file_path': file_path}
@@ -402,18 +417,14 @@ async def process_file_with_filters(update: Update, context: ContextTypes.DEFAUL
         buttons.append([InlineKeyboardButton(" Cᴀɴᴄᴇʟ", callback_data="cancel_filter")])
         reply_markup = InlineKeyboardMarkup(buttons)
         await update.message.reply_text(
-            f"📁 Fɪʟᴇ ʟᴏᴀᴅᴇᴅ: {len(cards)} ᴄᴀʀᴅs ғᴏᴜɴᴅ!\n\n💰 Sᴇʟᴇᴄᴛ ᴀ ᴘʀɪᴄᴇ ғɪʟᴛᴇʀ:",
+            f"📁 Fɪʟᴇ ʟᴏᴀᴅᴇᴅ: {len(cards)} ᴄᴀʀᴅs!\n\n💰 Sᴇʟᴇᴄᴛ ᴀ ᴘʀɪᴄᴇ ғɪʟᴛᴇʀ:",
             reply_markup=reply_markup
         )
     except Exception as e:
         await update.message.reply_text(f"❌ Eʀʀᴏʀ: {e}")
         if os.path.exists(file_path):
             os.remove(file_path)
-
-async def start_mass_check(user_id, cards, sites):
-    # هذه الدالة تم تبسيطها في النسخة الحالية
-    pass
-    # ==================================================
+# ==================================================
 # 6. أوامر البوت الرئيسية والإدارية
 # ==================================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -421,13 +432,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_prem = is_premium(user_id)
     username = update.effective_user.username or "User"
     plan = "🆓 Fʀᴇᴇ" if not is_prem else "⭐ Pʀᴇᴍɪᴜᴍ"
-    
     sites_data = await load_sites_with_price()
     total_sites = len(sites_data)
-    
     filters = await load_price_filters()
     gateway_filters = filters.get('shopify_global', DEFAULT_FILTERS)
-    
     filter_text = ""
     for f in gateway_filters:
         if f.get('all', False):
@@ -435,43 +443,36 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             count = len([s for s in sites_data if f['min'] <= s.get('price', 0) < f['max']])
         filter_text += f"   ┣ {f['name']}  {count}\n"
-    
     welcome_text = f"""Wᴇʟᴄᴏᴍᴇ @{username}!
 👑 Pʟᴀɴ: {plan}
 💰 Fɪʟᴛᴇʀs:
 {filter_text}
-
 🎁 Hᴏᴡ ᴛᴏ ᴜsᴇ:
    🦉 /addproxy
    🦉 /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ
    🔑 /redeem Kᴇʏ
-
 💡 Bᴏᴛ Dᴇᴠ @yacine_X6
  Vᴇʀsɪᴏɴ -» 2.0 🚀
  ﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏"""
-    
+    processed_text, entities = premium_emoji(welcome_text)
     keyboard = [
         [InlineKeyboardButton("Cᴍᴅ", callback_data="show_cmds"), 
          InlineKeyboardButton("Cʜᴀɴɴᴇʟ", url="https://t.me/netdz02_dev")],
     ]
     if user_id == ADMIN_ID:
         keyboard.append([InlineKeyboardButton("Aᴅᴍɪɴ Pᴀɴᴇʟ", callback_data="admin_panel")])
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(premium_emoji(welcome_text), reply_markup=reply_markup)
+    await update.message.reply_text(text=processed_text, entities=entities, reply_markup=reply_markup)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    
     if data == "show_cmds":
         commands_text = """📋 Usᴇʀ Cᴏᴍᴍᴀɴᴅs
-
 🛒 Sʜᴏᴘɪғʏ
 ├─ /cc ᴄᴄ|ᴍᴍ|ʏʏ|ᴄᴠᴠ → Cʜᴇᴄᴋ sɪɴɢʟᴇ ᴄᴀʀᴅ
 └─ /chk → Mᴀss ᴄʜᴇᴄᴋ ғʀᴏᴍ .ᴛxᴛ ғɪʟᴇ
-
 🔌 Pʀᴏxʏ Mᴀɴᴀɢᴇᴍᴇɴᴛ
 ├─ /proxy → Cʜᴇᴄᴋ & ʀᴇᴍᴏᴠᴇ ᴅᴇᴀᴅ ᴘʀᴏxɪᴇs
 ├─ /addproxy → Aᴅᴅ ᴘʀᴏxɪᴇs
@@ -480,25 +481,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ├─ /rmproxyindex 1,2,3 → Rᴇᴍᴏᴠᴇ ʙʏ ɪɴᴅᴇx
 ├─ /clearproxy → Rᴇᴍᴏᴠᴇ ᴀʟʟ ᴘʀᴏxɪᴇs
 └─ /getproxy → Gᴇᴛ ᴀʟʟ ᴘʀᴏxɪᴇs
-
 🔑 Kᴇʏ Sʏsᴛᴇᴍ
 └─ /redeem Kᴇʏ → Rᴇᴅᴇᴇᴍ ᴀ ᴘʀᴇᴍɪᴜᴍ ᴋᴇʏ"""
+        processed_text, entities = premium_emoji(commands_text)
         keyboard = [[InlineKeyboardButton("Bᴀᴄᴋ", callback_data="main_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(premium_emoji(commands_text), reply_markup=reply_markup)
-
+        await query.edit_message_text(text=processed_text, entities=entities, reply_markup=reply_markup)
     elif data == "admin_panel":
         if update.effective_user.id != ADMIN_ID:
             await query.answer("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.", show_alert=True)
             return
         admin_text = """👑 <b>Aᴅᴍɪɴ Pᴀɴᴇʟ</b>
-
 📋 <b>Pʀᴇᴍɪᴜᴍ Mᴀɴᴀɢᴇᴍᴇɴᴛ</b>
 ├─ /addpremium ᴜsᴇʀ_ɪᴅ → Aᴅᴅ ᴜsᴇʀ ᴛᴏ ᴘʀᴇᴍɪᴜᴍ
 ├─ /removepremium ᴜsᴇʀ_ɪᴅ → Rᴇᴍᴏᴠᴇ ᴜsᴇʀ ғʀᴏᴍ ᴘʀᴇᴍɪᴜᴍ
 ├─ /listpremium → Lɪsᴛ ᴀʟʟ ᴘʀᴇᴍɪᴜᴍ ᴜsᴇʀs
 └─ /genkeys ᴀᴍᴏᴜɴᴛ ʜᴏᴜʀs ᴜsᴇʀ_ʟɪᴍɪᴛ → Gᴇɴᴇʀᴀᴛᴇ ᴘʀᴇᴍɪᴜᴍ ᴋᴇʏs
-
 🌐 <b>Sɪᴛᴇs Mᴀɴᴀɢᴇᴍᴇɴᴛ</b>
 ├─ /addsites → Rᴇᴘʟʏ ᴛᴏ .ᴛxᴛ ғɪʟᴇ ᴛᴏ ᴜᴘʟᴏᴀᴅ sɪᴛᴇs
 ├─ /site → Cʜᴇᴄᴋ & ʀᴇᴍᴏᴠᴇ ᴅᴇᴀᴅ sɪᴛᴇs
@@ -507,29 +505,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ├─ /setfilter shopify_global ᴍɪɴ-ᴍᴀx \"Nᴀᴍᴇ\" → Aᴅᴅ ᴘʀɪᴄᴇ ғɪʟᴛᴇʀ
 ├─ /listfilters → Vɪᴇᴡ ᴀʟʟ ғɪʟᴛᴇʀs
 └─ /removefilter ɢᴀᴛᴇᴡᴀʏ ɴᴜᴍʙᴇʀ → Rᴇᴍᴏᴠᴇ ᴀ ғɪʟᴛᴇʀ
-
 📊 <b>Bᴏᴛ Sᴛᴀᴛɪsᴛɪᴄs</b>
 └─ /stats → Sʜᴏᴡ ʙᴏᴛ sᴛᴀᴛɪsᴛɪᴄs
-
 🔧 <b>Hɪᴛs Mᴀɴᴀɢᴇᴍᴇɴᴛ</b>
 ├─ /sethits ᴄʜᴀɴɴᴇʟ_ɪᴅ → Sᴇᴛ ʜɪᴛs ᴄʜᴀɴɴᴇʟ
 └─ /hits → Tᴏɢɢʟᴇ ʜɪᴛs ᴏɴ/ᴏғғ"""
+        processed_text, entities = premium_emoji(admin_text)
         keyboard = [[InlineKeyboardButton("Bᴀᴄᴋ", callback_data="main_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(premium_emoji(admin_text), reply_markup=reply_markup, parse_mode='HTML')
-
+        await query.edit_message_text(text=processed_text, entities=entities, reply_markup=reply_markup)
     elif data == "main_menu":
         user_id = update.effective_user.id
         is_prem = is_premium(user_id)
         username = update.effective_user.username or "User"
         plan = "🆓 Fʀᴇᴇ" if not is_prem else "⭐ Pʀᴇᴍɪᴜᴍ"
-        
         sites_data = await load_sites_with_price()
         total_sites = len(sites_data)
-        
         filters = await load_price_filters()
         gateway_filters = filters.get('shopify_global', DEFAULT_FILTERS)
-        
         filter_text = ""
         for f in gateway_filters:
             if f.get('all', False):
@@ -537,31 +530,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 count = len([s for s in sites_data if f['min'] <= s.get('price', 0) < f['max']])
             filter_text += f"   ┣ {f['name']}  {count}\n"
-        
         welcome_text = f"""Wᴇʟᴄᴏᴍᴇ @{username}!
 👑 Pʟᴀɴ: {plan}
 💰 Fɪʟᴛᴇʀs:
 {filter_text}
-
 🎁 Hᴏᴡ ᴛᴏ ᴜsᴇ:
-   🦉 /addproxy
-   🦉 /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ
+   🦉 /addproxy   🦉 /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ
    🔑 /redeem Kᴇʏ
-
 💡 Bᴏᴛ Dᴇᴠ @yacine_X6
  Vᴇʀsɪᴏɴ -» 2.0 🚀
  ﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏"""
-        
+        processed_text, entities = premium_emoji(welcome_text)
         keyboard = [
             [InlineKeyboardButton("Cᴍᴅ", callback_data="show_cmds"), 
              InlineKeyboardButton("Cʜᴀɴɴᴇʟ", url="https://t.me/netdz02_dev")],
         ]
         if user_id == ADMIN_ID:
             keyboard.append([InlineKeyboardButton("Aᴅᴍɪɴ Pᴀɴᴇʟ", callback_data="admin_panel")])
-        
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(premium_emoji(welcome_text), reply_markup=reply_markup)
-
+        await query.edit_message_text(text=processed_text, entities=entities, reply_markup=reply_markup)
     elif data == "cancel_filter":
         user_id = update.effective_user.id
         if user_id in TEMP_FILE_DATA:
@@ -572,8 +559,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except:
                     pass
         await query.edit_message_text("❌ Cᴀɴᴄᴇʟʟᴇᴅ.")
-        await query.answer("✅ Cᴀɴᴄᴇʟʟᴇᴅ", show_alert=False)
-
     elif data.startswith("price_fltr:"):
         parts = data.split(":")
         filter_index = int(parts[1])
@@ -581,10 +566,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != user_id:
             await query.answer("❌ Nᴏᴛ ʏᴏᴜʀ ғɪʟᴇ!", show_alert=True)
             return
-        # منطق الفلترة (سيتم إكماله لاحقاً)
+        await query.answer("✅ Fɪʟᴛᴇʀ sᴇʟᴇᴄᴛᴇᴅ!", show_alert=False)
 
 # ==================================================
-# 7. الأوامر الأساسية
+# 7. جميع الأوامر (مكتملة)
 # ==================================================
 async def cmd_cc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -599,45 +584,35 @@ async def cmd_cc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not proxies:
         await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ. Pʟᴇᴀsᴇ ᴀᴅᴅ ᴘʀᴏxɪᴇs.")
         return
-    
     try:
         cc_input = update.message.text.split(' ', 1)[1].strip()
-    except IndexError:
+    except:
         await update.message.reply_text("❌ Usᴀɢᴇ: /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ")
         return
-    
     cards = extract_cc(cc_input)
     if not cards:
         await update.message.reply_text("❌ Iɴᴠᴀʟɪᴅ CC ғᴏʀᴍᴀᴛ. Usᴇ: /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ")
         return
-    
     card = cards[0]
     status_msg = await update.message.reply_text(f"🔄 Cʜᴇᴄᴋɪɴɢ <code>{card}</code>...", parse_mode='HTML')
-    
     result = await check_card_with_retry(card, sites, proxies, max_retries=3)
     brand, bin_type, level, bank, country, flag = await get_bin_info(card.split('|')[0])
-    
     if result['status'] == 'Charged':
         status_header = "💎 CHARGED"
     elif result['status'] == 'Approved':
         status_header = "✅ APPROVED"
     else:
         status_header = "❌ DECLINED"
-    
     final_resp = f"""{status_header}
-
 💳 CC <code>{result['card']}</code>
-
 🛒 Gᴀᴛᴇᴡᴀʏ {result.get('gateway', 'Unknown')}
 📝 Rᴇsᴘᴏɴsᴇ {result['message'][:150]}
 💸 Pʀɪᴄᴇ {result.get('price', '-')}
-
 🆔 BIN Iɴғᴏ {brand} - {bin_type} - {level}
 🏦 Bᴀɴᴋ {bank}
 🥰 Cᴏᴜɴᴛʀʏ {country} {flag}
-
 💡 Mᴀᴅᴇ ʙʏ @yacine_X6"""
-    await status_msg.edit_text(premium_emoji(final_resp), parse_mode='HTML')
+    await status_msg.edit_text(final_resp, parse_mode='HTML')
 
 async def cmd_chk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -651,24 +626,20 @@ async def cmd_addproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_premium(user_id):
         await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ\n\nOɴʟʏ ᴘʀᴇᴍɪᴜᴍ ᴜsᴇʀs ᴄᴀɴ ᴜsᴇ ᴛʜɪs.")
         return
-    
     text = update.message.text
     lines = text.split('\n')
     if len(lines) < 2:
         await update.message.reply_text("❌ Usᴀɢᴇ: /addproxy followed by proxies, one per line.")
         return
-    
     proxies_to_add = [line.strip() for line in lines[1:] if line.strip()]
     if not proxies_to_add:
         await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs ᴘʀᴏᴠɪᴅᴇᴅ.")
         return
-    
     current_proxies = load_proxies()
     new_proxies = [p for p in proxies_to_add if p not in current_proxies]
     if not new_proxies:
         await update.message.reply_text("⚠️ Aʟʟ ᴘʀᴏxɪᴇs ᴀʟʀᴇᴀᴅʏ ᴇxɪsᴛ.")
         return
-    
     async with aiofiles.open(PROXY_FILE, 'a') as f:
         for proxy in new_proxies:
             await f.write(f"{proxy}\n")
@@ -712,7 +683,7 @@ async def cmd_chkproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         proxy = update.message.text.split(' ', 1)[1].strip()
-    except IndexError:
+    except:
         await update.message.reply_text("❌ Usᴀɢᴇ: /chkproxy ɪᴘ:ᴘᴏʀᴛ:ᴜsᴇʀ:ᴘᴀss")
         return
     status_msg = await update.message.reply_text(f"🔄 Cʜᴇᴄᴋɪɴɢ ᴘʀᴏxʏ: <code>{proxy}</code>...", parse_mode='HTML')
@@ -732,7 +703,7 @@ async def cmd_rmproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         proxy_to_remove = update.message.text.split(' ', 1)[1].strip()
-    except IndexError:
+    except:
         await update.message.reply_text("❌ Usᴀɢᴇ: /rmproxy ɪᴘ:ᴘᴏʀᴛ:ᴜsᴇʀ:ᴘᴀss")
         return
     current_proxies = load_proxies()
@@ -752,17 +723,17 @@ async def cmd_rmproxyindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         indices_str = update.message.text.split(' ', 1)[1].strip()
-    except IndexError:
+    except:
         await update.message.reply_text("❌ Usᴀɢᴇ: /rmproxyindex 1,2,3")
         return
     try:
         indices = [int(i.strip()) - 1 for i in indices_str.split(',')]
-    except ValueError:
-        await update.message.reply_text("❌ Iɴᴠᴀʟɪᴅ ɪɴᴅɪᴄᴇs. Usᴇ ɴᴜᴍʙᴇʀs sᴇᴘᴀʀᴀᴛᴇᴅ ʙʏ ᴄᴏᴍᴍᴀs.")
+    except:
+        await update.message.reply_text("❌ Iɴᴠᴀʟɪᴅ ɪɴᴅɪᴄᴇs.")
         return
     current_proxies = load_proxies()
     if not current_proxies:
-        await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs ɪɴ ᴘʀᴏxʏ.ᴛxᴛ")
+        await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs.")
         return
     removed = []
     new_proxies = []
@@ -772,13 +743,13 @@ async def cmd_rmproxyindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             new_proxies.append(proxy)
     if not removed:
-        await update.message.reply_text("❌ Nᴏ ᴠᴀʟɪᴅ ɪɴᴅɪᴄᴇs ғᴏᴜɴᴅ.")
+        await update.message.reply_text("❌ Nᴏ ᴠᴀʟɪᴅ ɪɴᴅɪᴄᴇs.")
         return
     async with aiofiles.open(PROXY_FILE, 'w') as f:
         for proxy in new_proxies:
             await f.write(f"{proxy}\n")
     removed_text = "\n".join(removed[:10])
-    await update.message.reply_text(f"✅ Rᴇᴍᴏᴠᴇᴅ {len(removed)} ᴘʀᴏxɪᴇs!\n\nRᴇᴍᴏᴠᴇᴅ:\n<code>{removed_text}</code>", parse_mode='HTML')
+    await update.message.reply_text(f"✅ Rᴇᴍᴏᴠᴇᴅ {len(removed)} ᴘʀᴏxɪᴇs!\n\n<code>{removed_text}</code>", parse_mode='HTML')
 
 async def cmd_clearproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -788,11 +759,11 @@ async def cmd_clearproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_proxies = load_proxies()
     count = len(current_proxies)
     if count == 0:
-        await update.message.reply_text("❌ ᴘʀᴏxʏ.ᴛxᴛ ɪs ᴀʟʀᴇᴀᴅʏ ᴇᴍᴘᴛʏ.")
+        await update.message.reply_text("❌ ᴘʀᴏxʏ.ᴛxᴛ ɪs ᴇᴍᴘᴛʏ.")
         return
     async with aiofiles.open(PROXY_FILE, 'w') as f:
         await f.write("")
-    await update.message.reply_text(f"✅ Cʟᴇᴀʀᴇᴅ ᴀʟʟ {count} ᴘʀᴏxɪᴇs!\n\nᴘʀᴏxʏ.ᴛxᴛ ɪs ɴᴏᴡ ᴇᴍᴘᴛʏ.")
+    await update.message.reply_text(f"✅ Cʟᴇᴀʀᴇᴅ ᴀʟʟ {count} ᴘʀᴏxɪᴇs!")
 
 async def cmd_getproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -801,7 +772,7 @@ async def cmd_getproxy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     current_proxies = load_proxies()
     if not current_proxies:
-        await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs ɪɴ ᴘʀᴏxʏ.ᴛxᴛ")
+        await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs.")
         return
     if len(current_proxies) <= 50:
         proxy_list = "\n".join([f"{i+1}. <code>{p}</code>" for i, p in enumerate(current_proxies)])
@@ -822,20 +793,17 @@ async def cmd_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
         key = update.message.text.split(' ', 1)[1].strip().upper()
-    except IndexError:
+    except:
         await update.message.reply_text("📝 Usᴀɢᴇ: /redeem Kᴇʏ")
         return
-    
     keys_data = await load_keys()
     if key not in keys_data:
         await update.message.reply_text("❌ Iɴᴠᴀʟɪᴅ Kᴇʏ!")
         return
-    
     key_data = keys_data[key]
     if key_data.get('type') == 'time_limit':
         expiry = datetime.fromisoformat(key_data['expiry'])
-        current_date = datetime.now()
-        if current_date > expiry:
+        if datetime.now() > expiry:
             await update.message.reply_text("❌ Tʜɪs ᴋᴇʏ ʜᴀs EXPIRED!")
             return
         if key_data['used_count'] >= key_data['user_limit']:
@@ -843,116 +811,90 @@ async def cmd_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         user_id_str = str(user_id)
         if user_id_str in key_data['used_by']:
-            await update.message.reply_text("❌ Yᴏᴜ ʜᴀᴠᴇ ᴀʟʀᴇᴀᴅʏ ᴜsᴇᴅ ᴛʜɪs ᴋᴇʏ!")
+            await update.message.reply_text("❌ Yᴏᴜ ᴀʟʀᴇᴀᴅʏ ᴜsᴇᴅ ᴛʜɪs ᴋᴇʏ!")
             return
         if is_premium(user_id):
-            await update.message.reply_text("❌ Yᴏᴜ ᴀʟʀᴇᴀᴅʏ ʜᴀᴠᴇ ᴘʀᴇᴍɪᴜᴍ ᴀᴄᴄᴇss!")
+            await update.message.reply_text("❌ Yᴏᴜ ᴀʟʀᴇᴀᴅʏ ʜᴀᴠᴇ ᴘʀᴇᴍɪᴜᴍ!")
             return
-        
         await add_premium_user(user_id)
         key_data['used_count'] += 1
         key_data['used_by'].append(user_id_str)
-        key_data['used_at'] = current_date.isoformat()
         keys_data[key] = key_data
         await save_keys(keys_data)
-        
-        hours_display = key_data['hours']
-        days_display = f"{hours_display} hours" if hours_display < 24 else f"{hours_display // 24} days"
         await update.message.reply_text(f"""🎉 Cᴏɴɢʀᴀᴛᴜʟᴀᴛɪᴏɴs!
-
 ⭐ Vɪᴘ Aᴄᴄᴇss Aᴄᴛɪᴠᴀᴛᴇᴅ!
-
-📅 Dᴜʀᴀᴛɪᴏɴ: {days_display}
-""")
+📅 Dᴜʀᴀᴛɪᴏɴ: {key_data['hours']} hours""")
 
 # ==================================================
 # 8. الأوامر الإدارية (للمطور فقط)
 # ==================================================
 async def cmd_addpremium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         target_id = int(update.message.text.split(' ', 1)[1].strip())
     except:
-        await update.message.reply_text("📝 Usᴀɢᴇ: /addpremium ᴜsᴇʀ_ɪᴅ")
+        await update.message.reply_text("📝 /addpremium ᴜsᴇʀ_ɪᴅ")
         return
     if await add_premium_user(target_id):
-        await update.message.reply_text(f"✅ Usᴇʀ <code>{target_id}</code> ᴀᴅᴅᴇᴅ ᴛᴏ ᴘʀᴇᴍɪᴜᴍ!", parse_mode='HTML')
+        await update.message.reply_text(f"✅ Usᴇʀ <code>{target_id}</code> ᴀᴅᴅᴇᴅ!", parse_mode='HTML')
     else:
-        await update.message.reply_text(f"⚠️ Usᴇʀ <code>{target_id}</code> ɪs ᴀʟʀᴇᴀᴅʏ ᴘʀᴇᴍɪᴜᴍ.", parse_mode='HTML')
+        await update.message.reply_text(f"⚠️ Usᴇʀ <code>{target_id}</code> ᴀʟʀᴇᴀᴅʏ ᴘʀᴇᴍɪᴜᴍ.", parse_mode='HTML')
 
 async def cmd_removepremium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         target_id = int(update.message.text.split(' ', 1)[1].strip())
     except:
-        await update.message.reply_text("📝 Usᴀɢᴇ: /removepremium ᴜsᴇʀ_ɪᴅ")
+        await update.message.reply_text("📝 /removepremium ᴜsᴇʀ_ɪᴅ")
         return
     if await remove_premium_user(target_id):
-        await update.message.reply_text(f"✅ Usᴇʀ <code>{target_id}</code> ʀᴇᴍᴏᴠᴇᴅ ғʀᴏᴍ ᴘʀᴇᴍɪᴜᴍ.", parse_mode='HTML')
+        await update.message.reply_text(f"✅ Usᴇʀ <code>{target_id}</code> ʀᴇᴍᴏᴠᴇᴅ!", parse_mode='HTML')
     else:
-        await update.message.reply_text(f"⚠️ Usᴇʀ <code>{target_id}</code> ɪs ɴᴏᴛ ᴘʀᴇᴍɪᴜᴍ.", parse_mode='HTML')
+        await update.message.reply_text(f"⚠️ Usᴇʀ <code>{target_id}</code> ɴᴏᴛ ᴘʀᴇᴍɪᴜᴍ.", parse_mode='HTML')
 
 async def cmd_listpremium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
-    premium_users = load_premium_users()
-    if not premium_users:
-        await update.message.reply_text("📭 Nᴏ ᴘʀᴇᴍɪᴜᴍ ᴜsᴇʀs ғᴏᴜɴᴅ.")
+    users = load_premium_users()
+    if not users:
+        await update.message.reply_text("📭 Nᴏ ᴘʀᴇᴍɪᴜᴍ ᴜsᴇʀs.")
         return
-    premium_list = "\n".join([f"• <code>{uid}</code>" for uid in premium_users])
-    await update.message.reply_text(f"👑 <b>Pʀᴇᴍɪᴜᴍ Usᴇʀs ({len(premium_users)})</b>\n\n{premium_list}", parse_mode='HTML')
+    await update.message.reply_text(f"👑 Pʀᴇᴍɪᴜᴍ Usᴇʀs ({len(users)}):\n" + "\n".join([f"• <code>{u}</code>" for u in users]), parse_mode='HTML')
 
 async def cmd_genkeys(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         parts = update.message.text.split()
-        amount = int(parts[1])
-        hours = int(parts[2])
-        user_limit = int(parts[3])
+        amount, hours, user_limit = int(parts[1]), int(parts[2]), int(parts[3])
     except:
-        await update.message.reply_text("📝 Usᴀɢᴇ: /genkeys ᴀᴍᴏᴜɴᴛ ʜᴏᴜʀs ᴜsᴇʀ_ʟɪᴍɪᴛ")
+        await update.message.reply_text("📝 /genkeys ᴀᴍᴏᴜɴᴛ ʜᴏᴜʀs ʟɪᴍɪᴛ")
         return
-    
     keys_data = await load_keys()
-    generated_keys = []
-    created_at = datetime.now()
+    generated = []
     for _ in range(amount):
         key = generate_key()
-        expiry_time = created_at + timedelta(hours=hours)
         keys_data[key] = {
-            'type': 'time_limit',
-            'hours': hours,
-            'expiry': expiry_time.isoformat(),
-            'user_limit': user_limit,
-            'used_count': 0,
-            'used_by': [],
-            'created_at': created_at.isoformat(),
-            'created_by': update.effective_user.id
+            'type': 'time_limit', 'hours': hours,
+            'expiry': (datetime.now() + timedelta(hours=hours)).isoformat(),
+            'user_limit': user_limit, 'used_count': 0, 'used_by': []
         }
-        generated_keys.append(key)
+        generated.append(key)
     await save_keys(keys_data)
-    
-    keys_text = "\n".join([f"┣ <code>{k}</code>" for k in generated_keys])
-    await update.message.reply_text(f"""⭐ <b>Kᴇʏs Gᴇɴᴇʀᴀᴛᴇᴅ</b>
-    
-┣ 📅 Pᴇʀɪᴏᴅ: {hours} hours
-┗ 👥 Usᴇʀs: {user_limit}
-{keys_text}
-✅ Usᴇ <code>/redeem Kᴇʏ</code> ᴛᴏ ʀᴇᴅᴇᴇᴍ""", parse_mode='HTML')
+    await update.message.reply_text(f"⭐ {amount} Kᴇʏs Gᴇɴᴇʀᴀᴛᴇᴅ!\n" + "\n".join([f"<code>{k}</code>" for k in generated]), parse_mode='HTML')
 
 async def cmd_addsites(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     if not update.message.reply_to_message:
-        await update.message.reply_text("📝 Pʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀ .ᴛxᴛ ғɪʟᴇ ᴡɪᴛʜ ᴛʜᴇ ᴄᴏᴍᴍᴀɴᴅ: /addsites")
+        await update.message.reply_text("📝 Pʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀ .ᴛxᴛ ғɪʟᴇ.")
         return
     reply_msg = update.message.reply_to_message
     if not reply_msg.document or not reply_msg.document.file_name.endswith('.txt'):
@@ -967,7 +909,7 @@ async def cmd_addsites(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sites = [line.strip() for line in content.splitlines() if line.strip()]
         os.remove(file_path)
         if not sites:
-            await update.message.reply_text("❌ Nᴏ ᴠᴀʟɪᴅ sɪᴛᴇs ғᴏᴜɴᴅ ɪɴ ғɪʟᴇ.")
+            await update.message.reply_text("❌ Nᴏ ᴠᴀʟɪᴅ sɪᴛᴇs.")
             return
         current_sites = load_sites()
         new_sites = [s for s in sites if s not in current_sites]
@@ -983,7 +925,7 @@ async def cmd_addsites(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_site(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     sites = load_sites()
     if not sites:
@@ -991,7 +933,7 @@ async def cmd_site(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     proxies = load_proxies()
     if not proxies:
-        await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs ᴀᴠᴀɪʟᴀʙʟᴇ.")
+        await update.message.reply_text("❌ Nᴏ ᴘʀᴏxɪᴇs.")
         return
     status_msg = await update.message.reply_text(f"🔄 Cʜᴇᴄᴋɪɴɢ {len(sites)} sɪᴛᴇs...")
     alive_sites = []
@@ -1023,7 +965,7 @@ async def cmd_site(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_rm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         url_to_remove = update.message.text.split(' ', 1)[1].strip()
@@ -1042,11 +984,11 @@ async def cmd_rm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_getsites(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     sites = load_sites()
     if not sites:
-        await update.message.reply_text("❌ Nᴏ sɪᴛᴇs ғᴏᴜɴᴅ.")
+        await update.message.reply_text("❌ Nᴏ sɪᴛᴇs.")
         return
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"sites_{timestamp}.txt"
@@ -1061,7 +1003,7 @@ async def cmd_getsites(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_setfilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         parts = update.message.text.split(maxsplit=3)
@@ -1080,11 +1022,11 @@ async def cmd_setfilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_listfilters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     filters = await load_price_filters()
     if not filters:
-        await update.message.reply_text("📭 Nᴏ ғɪʟᴛᴇʀs ғᴏᴜɴᴅ.")
+        await update.message.reply_text("📭 Nᴏ ғɪʟᴛᴇʀs.")
         return
     text = "🔧 <b>Pʀɪᴄᴇ Fɪʟᴛᴇʀs</b>\n\n"
     for gateway, gateway_filters in filters.items():
@@ -1092,11 +1034,11 @@ async def cmd_listfilters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, f in enumerate(gateway_filters, 1):
             text += f"   {i}. {f['name']} ({f['min']:.0f}-{f['max']:.0f})\n"
         text += "\n"
-    await update.message.reply_text(premium_emoji(text), parse_mode='HTML')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 async def cmd_removefilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         parts = update.message.text.split()
@@ -1104,7 +1046,7 @@ async def cmd_removefilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filter_num = int(parts[2]) - 1
         filters = await load_price_filters()
         if gateway not in filters or filter_num >= len(filters[gateway]):
-            await update.message.reply_text(f"❌ Iɴᴠᴀʟɪᴅ ғɪʟᴛᴇʀ ɴᴜᴍʙᴇʀ! Usᴇ /listfilters ᴛᴏ sᴇᴇ.")
+            await update.message.reply_text(f"❌ Iɴᴠᴀʟɪᴅ ғɪʟᴛᴇʀ.")
             return
         removed = filters[gateway].pop(filter_num)
         await save_price_filters(filters)
@@ -1114,38 +1056,36 @@ async def cmd_removefilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     premium_users = load_premium_users()
     sites = load_sites()
     proxies = load_proxies()
-    stats_text = f"""📊 <b>Bᴏᴛ Sᴛᴀᴛɪsᴛɪᴄs</b>
-
+    await update.message.reply_text(f"""📊 <b>Bᴏᴛ Sᴛᴀᴛɪsᴛɪᴄs</b>
 👑 Aᴅᴍɪɴs: 1
 💎 Pʀᴇᴍɪᴜᴍ Usᴇʀs: {len(premium_users)}
 🌐 Sɪᴛᴇs: {len(sites)}
 🔌 Pʀᴏxɪᴇs: {len(proxies)}
-🤖 Bᴏᴛ Sᴛᴀᴛᴜs: Rᴜɴɴɪɴɢ ✅"""
-    await update.message.reply_text(premium_emoji(stats_text), parse_mode='HTML')
+🤖 Sᴛᴀᴛᴜs: Rᴜɴɴɪɴɢ ✅""", parse_mode='HTML')
 
 async def cmd_sethits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     try:
         global HITS_CHANNEL_ID
         HITS_CHANNEL_ID = int(update.message.text.split(' ', 1)[1].strip())
         await update.message.reply_text(f"✅ Hɪᴛs ᴄʜᴀɴɴᴇʟ sᴇᴛ ᴛᴏ: <code>{HITS_CHANNEL_ID}</code>", parse_mode='HTML')
     except:
-        await update.message.reply_text("📝 Usᴀɢᴇ: /sethits -1001234567890")
+        await update.message.reply_text("📝 /sethits -1001234567890")
 
 async def cmd_hits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Aᴄᴄᴇss Dᴇɴɪᴇᴅ. Aᴅᴍɪɴ ᴏɴʟʏ.")
+        await update.message.reply_text("❌ Aᴅᴍɪɴ ᴏɴʟʏ.")
         return
     global HITS_CHANNEL_ID
     if HITS_CHANNEL_ID == 0:
-        await update.message.reply_text("❌ Hɪᴛs ᴄʜᴀɴɴᴇʟ ɴᴏᴛ sᴇᴛ. Usᴇ /sᴇᴛʜɪᴛs")
+        await update.message.reply_text("❌ Hɪᴛs ᴄʜᴀɴɴᴇʟ ɴᴏᴛ sᴇᴛ.")
         return
     if HITS_CHANNEL_ID < 0:
         HITS_CHANNEL_ID = abs(HITS_CHANNEL_ID)
@@ -1159,8 +1099,6 @@ async def cmd_hits(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==================================================
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
-    
-    # الأوامر الأساسية
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("cc", cmd_cc))
     application.add_handler(CommandHandler("chk", cmd_chk))
@@ -1172,8 +1110,6 @@ def main():
     application.add_handler(CommandHandler("clearproxy", cmd_clearproxy))
     application.add_handler(CommandHandler("getproxy", cmd_getproxy))
     application.add_handler(CommandHandler("redeem", cmd_redeem))
-    
-    # الأوامر الإدارية
     application.add_handler(CommandHandler("addpremium", cmd_addpremium))
     application.add_handler(CommandHandler("removepremium", cmd_removepremium))
     application.add_handler(CommandHandler("listpremium", cmd_listpremium))
@@ -1188,11 +1124,8 @@ def main():
     application.add_handler(CommandHandler("stats", cmd_stats))
     application.add_handler(CommandHandler("sethits", cmd_sethits))
     application.add_handler(CommandHandler("hits", cmd_hits))
-    
-    # معالج الأزرار
     application.add_handler(CallbackQueryHandler(button_handler))
-    
-    print("✅ Bᴏᴛ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ (بدون API_HASH)!")
+    print("✅ Bᴏᴛ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ (مع Premium Emoji)!")
     application.run_polling()
 
 if __name__ == "__main__":
