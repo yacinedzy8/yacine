@@ -4,11 +4,9 @@ import json
 import random
 import time
 import asyncio
-from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import aiohttp
 import aiofiles
+import requests
 
 # ==================================================
 # 1. البيانات الأساسية (بدون API_HASH)
