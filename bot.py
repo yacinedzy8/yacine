@@ -1,1089 +1,813 @@
-import os
-import re
+import telebot
 import json
+import requests
 import random
 import time
+import re
 import threading
-import requests
-from datetime import datetime, timedelta
-import telebot
-from telebot import types
+from datetime import datetime
+from faker import Faker
 
-# ==================================================
-# 1. البيانات الأساسية (بدون API_HASH)
-# ==================================================
-BOT_TOKEN = "8250378472:AAFH_JgQVbOUnCUvYQaOnLMnrWi4G_MCDZY"
-ADMIN_ID = 6936293942
-CHECKER_API_URL = 'http://afuonac.up.railway.app/shopify_parallel'
+TOKEN = "8250378472:AAFH_JgQVbOUnCUvYQaOnLMnrWi4G_MCDZY"
+bot = telebot.TeleBot(TOKEN)
 
-# ==================================================
-# 2. تعريف المتغيرات والملفات
-# ==================================================
-PREMIUM_USERS_FILE = "premium_users.txt"
-SITES_FILE = 'sites.txt'
-PROXY_FILE = 'proxy.txt'
-PRICE_FILTERS_FILE = "price_filters.json"
-SITES_WITH_PRICE_FILE = "sites_price.json"
-KEYS_FILE = "keys.json"
-HITS_CHANNEL_ID = 0
+# اذكر المصدر @Abosgr2025 • https://t.me/+YNZRwbLWXRZjMmVk
+# • BLACK LEGO 👋
 
-active_sessions = {}
-TEMP_FILE_DATA = {}
-SHOPIFY_SESSION_RESULTS = {}
+# ========== الإيموجيات المتحركة Premium ==========
+EMOJI_CROWN = "5017184459347199280"         # 1
+EMOJI_DIAMOND = "5017181010488460393"       # 2
+EMOJI_STAR = "5017218054581388213"          # 3
+EMOJI_SPARKLES = "5019656878745978138"      # 4
+EMOJI_FIRE = "5019401809228202926"          # 5
+EMOJI_GEM = "5019759644428469277"           # 6
+EMOJI_ROCKET = "5017341470466639017"        # 7
+EMOJI_SHIELD = "5019584761950110887"        # 8
+EMOJI_KEY = "5019569849823659365"           # 9
+EMOJI_MAIL = "5019765756166931507"          # 10
+EMOJI_USER = "5017191095071671290"          # 11
+EMOJI_SUCCESS = "5019651033295487811"       # 12
+EMOJI_FAIL = "5017073954133640188"          # 13
+EMOJI_GLOBE = "5017154574964753399"         # 14
+EMOJI_LOCK = "5019373307825226748"          # 15
+EMOJI_TIME = "5017497085721708142"          # 16
+EMOJI_STATS = "5017098860648989669"         # 17
+EMOJI_HEART = "5017351305941746807"         # 18
+EMOJI_SETTINGS = "5017558392084890552"      # 19
+EMOJI_LOADING = "5019348457144452062"       # 20
 
-# ==================================================
-# 3. قاموس الإيموجي المخصص (لـ Premium)
-# ==================================================
-PREMIUM_EMOJI_IDS = {
-    "✅": "5444987348334965906", "❌": "5447647474984449520", "🔥": "5116414868357907335",
-    "⚡": "5219943216781995020", "💳": "5447453226498552490", "💠": "5870498447068502918",
-    "📝": "5343649643685240676", "🌐": "5447602197439218445", "📊": "5445146408153806223",
-    "📦": "5303102515301083665", "📋": "4904936030232117798", "⏳": "5258113901106580375",
-    "🚀": "4904936030232117798", "⚠️": "4915853119839011973", "💎": "5343636681473935403",
-    "👋": "5134476056241112076", "💡": "5301275719681190738", "📈": "5134457377428341766",
-    "🔢": "5305652587708572354", "🔌": "5120722716260828125", "⭐️": "5172716095697584957",
-    "🆓": "5406756500108501710", "👑": "6266995104687330978", "🔍": "5258396243666681152",
-    "⏱️": "5343927661213279013", "💥": "5122933683820430249", "🆔": "5447311106030726740",
-    "👤": "5445174334031166029", "📅": "5116575178012235794", "🔄": "5454245266305604993",
-    "🏦": "5445408306669582934", "🥰": "5444931419270839381", "😱": "5447181973544008180",
-    "🔷": "5258024802010026053", "🔑": "5454386656628991407", "📆": "5454074580010295588",
-    "👥": "5454371323595744068", "🥕": "5447653032672129347", "➡️": "5445350109862720603",
-    "🦉": "5123344136665039833", "🍑": "5445408306669582934", "💪": "5305622454218024328",
-    "🌝": "5341684837881235158", "📁": "5444908424015934570", "ℹ️": "5289930378885214069",
-    "💀": "5231338559587257737", "📢": "5116445341150872576", "💰": "5116648080787112958",
-    "🔘": "5219901967916084166", "🔗": "5447479640547428304", "👇": "5122933683820430249",
-    "📌": "5447187153274567373", "🍳": "5305622454218024328", "💸": "5283232570660634549",
-    "🎉": "5172632227871196306", "🎁": "5283031441637148958",
-    "🚫": "5116151848855667552",
-    "🛒": "5447319442562251569", "🔧": "4904936030232117798",
-    "⛔️": "5275969776668134187", "🥲": "4904468402782864209",
-    "☠️": "5231338559587257737", "🛡": "5219672809936006424",
-    "📸": "5445344161333015312", "💬": "5447510826304959724",
-    "😺": "5118590136149345664", "🌍": "5303440357428586778",
-    "🔹": "5429436388447655367", "📹": "5445158077579952110",
-    "📡": "5447448489149625830", "🌟": "5310224206732996002",
-    "📍": "5447187153274567373", "🔐": "5258476306152038031",
-    "😇": "6321225560789877992", "👌": "5445350109862720603",
-    "⭐": "6267298050205553492", "🍭": "6267152480878990865",
-    "⚙️": "5258023599419171861", "⛔": "4918014360267260850",
-}
+# ========== بيانات المستخدمين ==========
+user_data = {}
+global_stats = {"created": 0, "failed": 0}
 
-DEFAULT_FILTERS = [
-    {"name": "0~10", "min": 0, "max": 10},
-    {"name": "10~50", "min": 10, "max": 50},
-    {"name": "50~200", "min": 50, "max": 200},
-    {"name": "200~ & ", "min": 200, "max": 999999},
-    {"name": "Aʟʟ Sɪᴛᴇs", "min": 0, "max": 999999, "all": True}
-]
+# ========== دوال فيسبوك ==========
 
-# ==================================================
-# 4. إنشاء البوت
-# ==================================================
-bot = telebot.TeleBot(BOT_TOKEN)
+def get_regex_group(pattern, text, default_value=""):
+    match = re.search(pattern, text)
+    if match:
+        return match.group(1)
+    return default_value
 
-# ==================================================
-# 5. دالة الإيموجي المخصص
-# ==================================================
-def premium_emoji(text: str):
-    """تحويل النص إلى رسالة تحتوي على إيموجي مخصص (Premium)."""
-    if not text:
-        return text, []
-    result = text
-    entities = []
-    offset = 0
-    for emoji, emoji_id in PREMIUM_EMOJI_IDS.items():
-        start = 0
-        while True:
-            start = result.find(emoji, start)
-            if start == -1:
-                break
-            # حساب الإزاحة الصحيحة مع الأخذ بعين الاعتبار الإيموجي السابقة
-            actual_offset = start
-            entities.append(
-                types.MessageEntity(
-                    type="custom_emoji",
-                    offset=actual_offset,
-                    length=len(emoji),
-                    custom_emoji_id=emoji_id
-                )
-            )
-            start += len(emoji)
-    # ترتيب الكيانات حسب الموقع
-    entities.sort(key=lambda e: e.offset)
-    return result, entities
+def get_fake_desktop_ua():
+    desktop_uas = [
+        {
+            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
+            "width": 1920,
+            "browser": "Microsoft Edge",
+            "version": "138",
+            "full_version_list": '"Not)A;Brand";v="8.0.0.0", "Chromium";v="138.0.7204.184", "Microsoft Edge";v="138.0.3351.121"'
+        },
+        {
+            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:119.0) "
+                  "Gecko/20100101 Firefox/119.0",
+            "width": 1920,
+            "browser": "Firefox",
+            "version": "119",
+            "full_version_list": '"Firefox";v="119.0"'
+        },
+        {
+            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/138.0.0.0 Safari/537.36",
+            "width": 1920,
+            "browser": "Chromium",
+            "version": "138",
+            "full_version_list": '"Not)A;Brand";v="8.0.0.0", "Chromium";v="138.0.7204.184"'
+        }
+    ]
+    return random.choice(desktop_uas)
 
-# ==================================================
-# 6. الدوال المساعدة
-# ==================================================
-def get_file_lines(filepath):
-    if not os.path.exists(filepath):
-        return []
-    try:
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-            return [line.strip() for line in f if line.strip()]
-    except:
-        return []
-
-def load_premium_users():
-    if not os.path.exists(PREMIUM_USERS_FILE):
-        with open(PREMIUM_USERS_FILE, 'w') as f:
-            f.write(f"{ADMIN_ID}\n")
-        return [str(ADMIN_ID)]
-    try:
-        with open(PREMIUM_USERS_FILE, 'r', encoding='utf-8', errors='ignore') as f:
-            users = [line.strip() for line in f if line.strip()]
-        if str(ADMIN_ID) not in users:
-            users.append(str(ADMIN_ID))
-            with open(PREMIUM_USERS_FILE, 'w') as f:
-                for u in users:
-                    f.write(f"{u}\n")
-        return users
-    except:
-        return [str(ADMIN_ID)]
-
-def load_sites():
-    return get_file_lines(SITES_FILE)
-
-def load_proxies():
-    return get_file_lines(PROXY_FILE)
-
-def is_premium(user_id):
-    premium_users = load_premium_users()
-    return str(user_id) in premium_users
-
-def add_premium_user_sync(user_id):
-    premium_users = load_premium_users()
-    if str(user_id) not in premium_users:
-        premium_users.append(str(user_id))
-        with open(PREMIUM_USERS_FILE, 'w') as f:
-            for uid in premium_users:
-                f.write(f"{uid}\n")
-        return True
-    return False
-
-def remove_premium_user_sync(user_id):
-    premium_users = load_premium_users()
-    if str(user_id) in premium_users:
-        premium_users.remove(str(user_id))
-        with open(PREMIUM_USERS_FILE, 'w') as f:
-            for uid in premium_users:
-                f.write(f"{uid}\n")
-        return True
-    return False
-
-def generate_key():
-    random_part = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=15))
-    return f"YACINE_{random_part}"
-
-def load_keys_sync():
-    if not os.path.exists(KEYS_FILE):
-        return {}
-    try:
-        with open(KEYS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_keys_sync(keys):
-    with open(KEYS_FILE, 'w') as f:
-        json.dump(keys, f, indent=4)
-
-def load_price_filters_sync():
-    if not os.path.exists(PRICE_FILTERS_FILE):
-        return {}
-    try:
-        with open(PRICE_FILTERS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_price_filters_sync(filters):
-    with open(PRICE_FILTERS_FILE, 'w') as f:
-        json.dump(filters, f, indent=4)
-
-def load_sites_with_price_sync():
-    if not os.path.exists(SITES_WITH_PRICE_FILE):
-        return []
-    try:
-        with open(SITES_WITH_PRICE_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return []
-
-def save_sites_with_price_sync(data):
-    with open(SITES_WITH_PRICE_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
-
-def get_price_from_response(raw_response):
-    try:
-        price = raw_response.get('Price', '-')
-        if price != '-' and price != 0:
-            try:
-                price_clean = str(price).replace('$', '').replace(',', '').strip()
-                return float(price_clean)
-            except:
-                return 0.0
-        return 0.0
-    except:
-        return 0.0
-
-def is_site_dead(response_msg, gateway, price):
-    if not response_msg:
-        return True
-    if not gateway or gateway == "Unknown":
-        return True
-    if "Shopify" not in gateway:
-        return True
-    price_str = str(price)
-    if price_str in ["-", "$-", "$0", "$0.0", "0", "$0.00"]:
-        return True
-    return False
-
-def extract_cc(text):
-    pattern = r'(\d{15,16})\|(\d{2})\|(\d{2,4})\|(\d{3,4})'
-    matches = re.findall(pattern, text)
-    cards = []
-    for match in matches:
-        card, month, year, cvv = match
-        if len(year) == 2:
-            year = '20' + year
-        cards.append(f"{card}|{month}|{year}|{cvv}")
-    return cards
-# ==================================================
-# 7. دوال الفحص (متزامنة)
-# ==================================================
-def check_card_sync(card, site, proxy):
-    try:
-        parts = card.split('|')
-        if len(parts) != 4:
-            return {'status': 'Invalid Format', 'message': 'Invalid card format', 'card': card}
-        if not site.startswith('http'):
-            site = f'https://{site}'
-        proxy_str = None
-        if proxy:
-            proxy_parts = proxy.split(':')
-            if len(proxy_parts) == 4:
-                ip, port, user, password = proxy_parts
-                proxy_str = f"{ip}:{port}:{user}:{password}"
-            elif len(proxy_parts) == 2:
-                ip, port = proxy_parts
-                proxy_str = f"{ip}:{port}"
-            else:
-                proxy_str = proxy
-        url = f'{CHECKER_API_URL}?site={site}&cc={card}'
-        if proxy_str:
-            url += f'&proxy={proxy_str}'
-        try:
-            response = requests.get(url, timeout=30)
-            if response.status_code != 200:
-                return {'status': 'Site Error', 'message': f'HTTP {response.status_code}', 'card': card, 'retry': True}
-            raw = response.json()
-        except:
-            return {'status': 'Site Error', 'message': 'Invalid response', 'card': card, 'retry': True}
-        response_msg = raw.get('Response', '')
-        price = raw.get('Price', '-')
-        if price != '-' and price != 0:
-            price_display = f"${price}"
+def parse_set_cookie(headers):
+    raw_cookie = headers.get('Set-Cookie')
+    cookies = {}
+    if not raw_cookie:
+        return cookies, ""
+    parts = raw_cookie.split(',')
+    temp = []
+    for part in parts:
+        if '=' in part.split(';')[0]:
+            temp.append(part.strip())
         else:
-            price_display = '-'
-        gateway = raw.get('Gateway', 'Shopify')
-        if is_site_dead(response_msg, gateway, price_display):
-            return {'status': 'Site Error', 'message': response_msg, 'card': card, 'retry': True, 'gateway': gateway, 'price': price_display}
-        response_lower = response_msg.lower()
-        if 'charged' in response_lower or 'order_placed' in response_lower or 'thank you' in response_lower or 'payment successful' in response_lower:
-            return {'status': 'Charged', 'message': response_msg, 'card': card, 'site': site, 'gateway': gateway, 'price': price_display}
-        elif any(key in response_lower for key in ['approved', 'success', 'insufficient_funds', 'invalid_cvv', 'incorrect_cvv', 'invalid_cvc', 'incorrect_cvc', 'incorrect_zip', 'cvv issue', '3d', 'otp', 'verification required', 'authenticate', 'authentication required']):
-            return {'status': 'Approved', 'message': response_msg, 'card': card, 'site': site, 'gateway': gateway, 'price': price_display}
-        else:
-            return {'status': 'Dead', 'message': response_msg, 'card': card, 'site': site, 'gateway': gateway, 'price': price_display}
-    except requests.Timeout:
-        return {'status': 'Site Error', 'message': 'Request timeout', 'card': card, 'retry': True}
-    except Exception as e:
-        return {'status': 'Dead', 'message': str(e), 'card': card, 'gateway': 'Unknown', 'price': '-'}
+            temp[-1] += ',' + part.strip()
+    for ck in temp:
+        kv = ck.split(';', 1)[0]
+        if '=' in kv:
+            k, v = kv.split('=', 1)
+            cookies[k.strip()] = v.strip()
+    cookie_str = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+    return cookies, cookie_str
 
-def check_card_with_retry_sync(card, sites, proxies, max_retries=2):
-    if not sites:
-        return {'status': 'Dead', 'message': 'No sites available', 'card': card, 'gateway': 'Unknown', 'price': '-'}
-    if not proxies:
-        return {'status': 'Dead', 'message': 'No proxies available', 'card': card, 'gateway': 'Unknown', 'price': '-'}
-    for attempt in range(max_retries):
-        site = random.choice(sites)
-        proxy = random.choice(proxies)
-        result = check_card_sync(card, site, proxy)
-        if not result.get('retry'):
-            return result
-        if attempt < max_retries - 1:
-            time.sleep(0.3)
-    return {'status': 'Dead', 'message': 'Max retries exceeded', 'card': card, 'gateway': 'Unknown', 'price': '-'}
+def create_facebook_account(password=None):
+    fake = Faker('en_US')
+    ua_data = get_fake_desktop_ua()
+    first_name = fake.first_name_female()
+    last_name = fake.last_name()
+    email_akun = f'{first_name.lower()}{last_name.lower()}{random.randint(10,99)}@gmail.com'
+    if password is None:
+        password = 'levi@$618pi'
 
-def test_site_with_price_sync(site, proxy):
-    test_card = "4031630422575208|01|2030|280"
-    try:
-        if not site.startswith('http'):
-            site = f'https://{site}'
-        proxy_str = None
-        if proxy:
-            proxy_parts = proxy.split(':')
-            if len(proxy_parts) == 4:
-                ip, port, user, password = proxy_parts
-                proxy_str = f"{ip}:{port}:{user}:{password}"
-            elif len(proxy_parts) == 2:
-                ip, port = proxy_parts
-                proxy_str = f"{ip}:{port}"
-        url = f'{CHECKER_API_URL}?site={site}&cc={test_card}'
-        if proxy_str:
-            url += f'&proxy={proxy_str}'
-        response = requests.get(url, timeout=30)
-        if response.status_code != 200:
-            return {'site': site, 'status': 'dead', 'price': 0.0}
-        raw = response.json()
-        response_msg = raw.get('Response', '')
-        gateway = raw.get('Gateway', '')
-        price_display = raw.get('Price', '-')
-        if is_site_dead(response_msg, gateway, price_display):
-            return {'site': site, 'status': 'dead', 'price': 0.0}
-        else:
-            return {'site': site, 'status': 'alive', 'price': get_price_from_response(raw)}
-    except:
-        return {'site': site, 'status': 'dead', 'price': 0.0}
-
-def test_proxy_sync(proxy):
-    try:
-        proxy_parts = proxy.split(':')
-        if len(proxy_parts) == 4:
-            ip, port, user, password = proxy_parts
-            proxy_url = f'http://{user}:{password}@{ip}:{port}'
-        elif len(proxy_parts) == 2:
-            ip, port = proxy_parts
-            proxy_url = f'http://{ip}:{port}'
-        else:
-            proxy_url = f'http://{proxy}'
-        proxies = {'http': proxy_url, 'https': proxy_url}
-        response = requests.get('https://www.shopify.com', proxies=proxies, timeout=10)
-        if response.status_code == 200:
-            return {'proxy': proxy, 'status': 'alive'}
-        else:
-            return {'proxy': proxy, 'status': 'dead'}
-    except:
-        return {'proxy': proxy, 'status': 'dead'}
-
-# ==================================================
-# 8. دوال معالجة الملفات
-# ==================================================
-def process_file_with_filters(message, user_id):
-    if not message.reply_to_message or not message.reply_to_message.document:
-        bot.reply_to(message, "❌ Please reply to a .txt file.")
-        return
-    try:
-        file_info = bot.get_file(message.reply_to_message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        content = downloaded_file.decode('utf-8', errors='ignore')
-        cards = extract_cc(content)
-        if not cards:
-            bot.reply_to(message, "❌ No valid cards found.")
-            return
-        TEMP_FILE_DATA[user_id] = {'cards': cards, 'file_path': None}
-        filters = load_price_filters_sync()
-        gateway_filters = filters.get('shopify_global', DEFAULT_FILTERS)
-        keyboard = types.InlineKeyboardMarkup(row_width=2)
-        for i, f in enumerate(gateway_filters):
-            keyboard.add(types.InlineKeyboardButton(f["name"], callback_data=f"price_fltr:{i}:{user_id}"))
-        keyboard.add(types.InlineKeyboardButton("Cancel", callback_data="cancel_filter"))
-        bot.reply_to(message, f"📁 File loaded: {len(cards)} cards!\n\n💰 Select a price filter:", reply_markup=keyboard)
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}")
-
-# ==================================================
-# 9. دوال الفحص الجماعي (Mass Check)
-# ==================================================
-def start_mass_check(user_id, cards, sites):
-    if not sites:
-        bot.send_message(user_id, "❌ No sites available!")
-        return
-    proxies = load_proxies()
-    if not proxies:
-        bot.send_message(user_id, "❌ No proxies available!")
-        return
-    status_msg = bot.send_message(user_id, f"🔥 Starting check for {len(cards)} cards...")
-    all_results = {
-        'charged': [], 'approved': [], 'dead': [],
-        'total': len(cards), 'checked': 0,
-        'start_time': time.time(),
-        'last_card': '', 'last_response': '', 'last_price': '-'
+    cookies = {'wd': '738x688', 'locale': 'en_GB'}
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'en,id;q=0.9,en-GB;q=0.8,en-US;q=0.7',
+        'dpr': '1',
+        'priority': 'u=0, i',
+        'sec-ch-prefers-color-scheme': 'dark',
+        'sec-ch-ua': f'"Not)A;Brand";v="8", "{ua_data["browser"]}";v="{ua_data["version"]}"',
+        'sec-ch-ua-full-version-list': ua_data["full_version_list"],
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-model': '""',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-ch-ua-platform-version': '"19.0.0"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': ua_data["ua"],
+        'viewport-width': str(ua_data["width"])
     }
+
     try:
-        for idx, card in enumerate(cards):
-            current_sites = sites
-            current_proxies = load_proxies()
-            if not current_sites or not current_proxies:
-                break
-            res = check_card_with_retry_sync(card, current_sites, current_proxies, max_retries=2)
-            all_results['checked'] += 1
-            all_results['last_card'] = card
-            all_results['last_response'] = res.get('message', '')[:50]
-            all_results['last_price'] = res.get('price', '-')
-            if res['status'] == 'Charged':
-                all_results['charged'].append(res)
-                bot.send_message(user_id, f"💎 Charged: <code>{card}</code>", parse_mode='HTML')
-            elif res['status'] == 'Approved':
-                all_results['approved'].append(res)
-                bot.send_message(user_id, f"✅ Approved: <code>{card}</code>", parse_mode='HTML')
-            else:
-                all_results['dead'].append(res)
-            if idx % 10 == 0:
-                elapsed = int(time.time() - all_results['start_time'])
-                progress_text = f"""💳 Card: <code>{card[:16]}</code>
-📝 {res.get('message', '')[:16]}
-💰 {res.get('price', '-')}
-📊 {all_results['checked']}/{all_results['total']}
-⏱️ {elapsed}s"""
-                bot.edit_message_text(progress_text, status_msg.chat.id, status_msg.message_id, parse_mode='HTML')
-        # إرسال النتائج النهائية
-        summary = f"""✅ Check Complete!
-📊 Results:
-   ┣ ✅ Charged: {len(all_results['charged'])}
-   ┣ 🔥 Approved: {len(all_results['approved'])}
-   ┣ ❌ Declined: {len(all_results['dead'])}
-   ┗ 📊 Total: {all_results['total']}"""
-        bot.send_message(user_id, summary)
-        SHOPIFY_SESSION_RESULTS[user_id] = all_results
+        response = requests.get(
+            'https://www.facebook.com/?_rdc=1&_rdr',
+            cookies=cookies,
+            headers=headers,
+            timeout=30
+        )
+        cookies.update(dict(response.cookies.get_dict()))
+        headers.update({'referer': 'https://www.facebook.com/?_rdc=1&_rdr'})
+        
+        signup = requests.get(
+            'https://www.facebook.com/r.php?entry_point=login',
+            cookies=cookies,
+            headers=headers,
+            timeout=30
+        ).text.replace('\\', '')
+        
+        lsd_token = 'AVo86L310qI'
+        haste_session = get_regex_group('"haste_session":"(.*?)"', signup)
+        ccg = get_regex_group('"connectionClass":"(.*?)"', signup)
+        rev = get_regex_group(r'"consistency":{"rev":(\d+)', signup)
+        hsi = get_regex_group(r'"hsi":"(\d+)"', signup)
+        spint = get_regex_group(r'"__spin_t":(\d+)', signup)
+        vip = get_regex_group('"vip":"(.*?)"', signup)
+        
+        headers.update({
+            'x-asbd-id': '359341',
+            'x-fb-lsd': lsd_token
+        })
+
+        requests.get(
+            f'https://web.facebook.com/ajax/registration/validation/contactpoint_invalid/?contactpoint={email_akun}&fb_dtsg_ag&__user=0&__a=1&__req=4&__hs={haste_session}&dpr=1&__ccg={ccg}&__rev={rev}&__s=an0im4%3Afuzmdi%3Ahsr1au&__hsi={hsi}&__dyn=7xe6EsK36Q5E5ObwKBWg5S1Dxu13wqovzEdEc8uw9-3K0lW4o3Bw5VCwjE3awdu0FE2awpUO0n24o5-0me1Fw5uwbO0KU3mwaS0zE5W09yyE1582ZwrU1Xo1UU3jwea&__hsdp=hIfEA5EIox0IkE99fxTFBAwNy2wJBCx90NhE4a1nxe0ky0mK0MEMw7W1kwk87Feoqh0&__hblp=0PU2Owjo620kq0k63a0tG1ew9W2a0cZAw3q80zS0-o04XK0Go1pU0OG1uKLDBFoDh80rQw&__spin_r={rev}&__spin_b=trunk&__spin_t={spint}',
+            cookies=cookies,
+            headers=headers,
+            timeout=30
+        )
+
+        headers.update({
+            'origin': 'https://www.facebook.com',
+            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Microsoft Edge";v="138"',
+            'sec-ch-ua-full-version-list': '"Not)A;Brand";v="8.0.0.0", "Chromium";v="138.0.7204.184", "Microsoft Edge";v="138.0.3351.121"',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0',
+            'accept': '*/*',
+            'accept-language': 'en,id;q=0.9,en-GB;q=0.8,en-US;q=0.7',
+            'content-type': 'application/x-www-form-urlencoded',
+            'referer': 'https://www.facebook.com/r.php?entry_point=login',
+            'cookie': 'datr=gKGYaMFDH3Zw5Gg2sggX9tbi; sb=gKGYaLge53jtbcJoymqEnZXl; ps_l=1; ps_n=1; locale=en_GB; wd=738x688; fr=1HLHrBbAGkoJv5O1l.AWeSwdELticByfVx58z4uY-kWUf_iGff96qe3DzSwDRT0GEF8Jo.BomL39..AAA.0.0.BomL4I.AWddslGP88dg7QDodcwbRuVHL_k'
+        })
+
+        data = {
+            'jazoest': get_regex_group(r'name="jazoest" value="(\d+)"', signup),
+            'lsd': lsd_token,
+            'firstname': first_name,
+            'lastname': last_name,
+            'birthday_day': '10',
+            'birthday_month': '8',
+            'birthday_year': '2005',
+            'birthday_age': '',
+            'did_use_age': 'false',
+            'sex': '1',
+            'preferred_pronoun': '',
+            'custom_gender': '',
+            'reg_email__': email_akun,
+            'reg_email_confirmation__': '',
+            'reg_passwd__': f'#PWD_BROWSER:0:{int(time.time())}:{password}',
+            'referrer': '',
+            'asked_to_login': '0',
+            'use_custom_gender': '',
+            'terms': 'on',
+            'ns': '0',
+            'ri': get_regex_group('name="ri" value="(.?)"', signup),
+            'action_dialog_shown': '',
+            'invid': '',
+            'a': '',
+            'oi': '',
+            'locale': 'en_GB',
+            'app_bundle': '',
+            'app_data': '',
+            'reg_data': '',
+            'app_id': '',
+            'fbpage_id': '',
+            'reg_oid': '',
+            'reg_instance': get_regex_group('name="reg_instance" value="(.?)"', signup),
+            'openid_token': '',
+            'uo_ip': vip,
+            'guid': '',
+            'key': '',
+            're': '',
+            'mid': '',
+            'fid': '',
+            'reg_dropoff_id': '',
+            'reg_dropoff_code': '',
+            'ignore': 'captcha|reg_email_confirmation__',
+            'captcha_persist_data': get_regex_group('name="captcha_persist_data" value="(.*?)"', signup),
+            'captcha_response': '',
+            '__user': '0',
+            '__a': '1',
+            '__req': '5',
+            '__hs': haste_session,
+            'dpr': '1',
+            '__ccg': ccg,
+            '__rev': rev,
+            '__s': 'an0im4:fuzmdi:hsr1su',
+            '__hsi': hsi,
+            '__dyn': '7xe6EsK36Q5E5ObwKBWg5S1Dxu13wqovzEdEc8uw9-3K0lW4o3Bw5VCwjE3awdu0FE2awpUO0n24o5-0me1Fw5uwbO0KU3mwaS0zE5W09yyE1582ZwrU1Xo1UU3jwea',
+            '__hsdp': 'hIfEA5EIox0IkE99fxTFBAwNy2wJBCx90NhE4a1nxe0ky0mK0MEMw7W1kwk87Feoqh0',
+            '__hblp': '0PU2Owjo620kq0k63a0tG1ew9W2a0cZAw3q80zS0-o04XK0Go1pU0OG1uKLDBFoDh80rQw',
+            '__spin_r': rev,
+            '__spin_b': 'trunk',
+            '__spin_t': spint
+        }
+
+        response = requests.post(
+            'https://web.facebook.com/ajax/register.php',
+            headers=headers,
+            data=data,
+            timeout=30
+        )
+
+        if '"registration_succeeded":true' in response.text:
+            cookie_dict, cookie_str = parse_set_cookie(response.headers)
+            return {
+                "success": True,
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": email_akun,
+                "password": password,
+                "cookie": cookie_str,
+                "ip": vip
+            }
+        else:
+            error_msg = "Unknown error"
+            if "error" in response.text.lower():
+                try:
+                    error_data = response.json()
+                    error_msg = str(error_data.get("error", "Unknown error"))[:200]
+                except:
+                    error_msg = response.text[:200]
+            return {"success": False, "error": error_msg}
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {e}")
-    finally:
-        bot.delete_message(status_msg.chat.id, status_msg.message_id)
-# ==================================================
-# 10. أوامر البوت الرئيسية
-# ==================================================
+        return {"success": False, "error": str(e)[:200]}
+
+
+def show_loading_animation(chat_id, msg_id, stop_event):
+    frames = ["▰▱▱▱▱", "▰▰▱▱▱", "▰▰▰▱▱", "▰▰▰▰▱", "▰▰▰▰▰"]
+    i = 0
+    
+    while not stop_event.is_set():
+        frame = frames[i % len(frames)]
+        
+        text = (
+            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري المعالجة...</b>\n'
+            f'<blockquote>[{frame}]</blockquote>'
+        )
+        
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=text,
+                parse_mode='HTML'
+            )
+        except:
+            pass
+        
+        i += 1
+        time.sleep(0.8)
+
+
+# ========== أوامر البوت ==========
+
 @bot.message_handler(commands=['start'])
-def start(message):
-    user_id = message.from_user.id
-    is_prem = is_premium(user_id)
-    username = message.from_user.username or "User"
-    plan = "🆓 Free" if not is_prem else "⭐ Premium"
-    
-    welcome_text = f"""Wᴇʟᴄᴏᴍᴇ @{username}!
-👑 Pʟᴀɴ: {plan}
-🎁 Hᴏᴡ ᴛᴏ ᴜsᴇ:
-   🦉 /addproxy
-   🦉 /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ
-   🔑 /redeem Kᴇʏ
-💡 Bᴏᴛ Dᴇᴠ @yacine_X6"""
-    
-    # معالجة الإيموجي المخصص
-    processed_text, entities = premium_emoji(welcome_text)
-    
-    keyboard = types.InlineKeyboardMarkup(row_width=2)
-    btn1 = types.InlineKeyboardButton("Cᴍᴅ", callback_data="show_cmds")
-    btn2 = types.InlineKeyboardButton("Cʜᴀɴɴᴇʟ", url="https://t.me/netdz02_dev")
-    keyboard.add(btn1, btn2)
-    if user_id == ADMIN_ID:
-        btn3 = types.InlineKeyboardButton("Aᴅᴍɪɴ Pᴀɴᴇʟ", callback_data="admin_panel")
-        keyboard.add(btn3)
-    
-    # إرسال الرسالة مع الإيموجي المخصص
-    bot.send_message(message.chat.id, processed_text, reply_markup=keyboard, entities=entities)
+def send_welcome(message):
+    welcome_text = (
+        f'<tg-emoji emoji-id="{EMOJI_CROWN}">👑</tg-emoji> <b>FACEBOOK GEN</b>\n'
+        f'<blockquote>أداة إنشاء حسابات فيسبوك تلقائياً</blockquote>\n\n'
+        f'<blockquote expandable>\n'
+        f'<b>⎔ المطور:</b> <a href="">𝗬𝗮𝗰𝗶𝗻𝗲𝗗𝗲𝘃</a>\n'
+        f'</blockquote>'
+    )
+
+    keyboard = [
+        # الصف الأول: زر أساسي ومهم (زر بحجم كامل)
+        [
+            {
+                "text": "إنشاء حساب",
+                "callback_data": "create_single",
+                "style": "success",
+                "icon_custom_emoji_id": EMOJI_ROCKET
+            }
+        ],
+        # الصف الثاني: خيارات إضافية (زرين بجانب بعض لتوفير المساحة وتجميل الشكل)
+        [
+            {
+                "text": "إنشاء بالجملة",
+                "callback_data": "menu_bulk",
+                "style": "primary",
+                "icon_custom_emoji_id": EMOJI_FIRE
+            },
+            {
+                "text": "تغيير الباسورد",
+                "callback_data": "change_password",
+                "style": "primary",
+                "icon_custom_emoji_id": EMOJI_KEY
+            }
+        ],
+        # الصف الثالث: زر المعلومات (زر بحجم كامل في الأسفل)
+        [
+            {
+                "text": "عن المطور",
+                "callback_data": "about_dev",
+                "style": "primary",
+                "icon_custom_emoji_id": EMOJI_DIAMOND
+            }
+        ]
+    ]
+
+    bot.send_message(
+        message.chat.id,
+        welcome_text,
+        parse_mode='HTML',
+        reply_markup=json.dumps({"inline_keyboard": keyboard}),
+        disable_web_page_preview=True
+    )
+
+
 
 @bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    if call.data == "show_cmds":
-        commands_text = """📋 Usᴇʀ Cᴏᴍᴍᴀɴᴅs
-🛒 Sʜᴏᴘɪғʏ
-├─ /cc ᴄᴄ|ᴍᴍ|ʏʏ|ᴄᴠᴠ
-└─ /chk (mass check)
-🔌 Pʀᴏxʏ Mᴀɴᴀɢᴇᴍᴇɴᴛ
-├─ /addproxy
-├─ /proxy
-├─ /chkproxy
-├─ /rmproxy
-├─ /rmproxyindex
-├─ /clearproxy
-└─ /getproxy
-🔑 Kᴇʏ Sʏsᴛᴇᴍ
-└─ /redeem Kᴇʏ"""
-        processed_text, entities = premium_emoji(commands_text)
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("Bᴀᴄᴋ", callback_data="main_menu"))
-        bot.edit_message_text(processed_text, call.message.chat.id, call.message.message_id, reply_markup=keyboard, entities=entities)
+def handle_callback(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id
+    msg_id = call.message.message_id
     
-    elif call.data == "admin_panel":
-        if call.from_user.id != ADMIN_ID:
-            bot.answer_callback_query(call.id, "❌ Admin only.", show_alert=True)
-            return
-        admin_text = """👑 Aᴅᴍɪɴ Pᴀɴᴇʟ
-📋 Pʀᴇᴍɪᴜᴍ Mᴀɴᴀɢᴇᴍᴇɴᴛ
-├─ /addpremium
-├─ /removepremium
-├─ /listpremium
-└─ /genkeys
-🌐 Sɪᴛᴇs Mᴀɴᴀɢᴇᴍᴇɴᴛ
-├─ /addsites
-├─ /site
-├─ /rm
-└─ /getsites
-📊 Sᴛᴀᴛs
-└─ /stats"""
-        processed_text, entities = premium_emoji(admin_text)
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("Bᴀᴄᴋ", callback_data="main_menu"))
-        bot.edit_message_text(processed_text, call.message.chat.id, call.message.message_id, reply_markup=keyboard, entities=entities)
+    if user_id not in user_data:
+        user_data[user_id] = {"password": "levi@$618pi", "state": "idle"}
     
-    elif call.data == "main_menu":
-        start(call.message)
+    # حذف الرسالة
+    if call.data == "delete_msg":
+        try:
+            bot.delete_message(chat_id, msg_id)
+        except:
+            pass
+        return
     
-    elif call.data == "cancel_filter":
-        user_id = call.from_user.id
-        if user_id in TEMP_FILE_DATA:
-            TEMP_FILE_DATA.pop(user_id)
-        bot.edit_message_text("❌ Cancelled.", call.message.chat.id, call.message.message_id)
+    # إنشاء حساب واحد
+    if call.data == "create_single":
+        loading_msg = bot.send_message(
+            chat_id,
+            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري الإنشاء...</b>',
+            parse_mode='HTML'
+        )
+        
+        stop_event = threading.Event()
+        anim_thread = threading.Thread(target=show_loading_animation, args=(chat_id, loading_msg.message_id, stop_event))
+        anim_thread.start()
+        
+        password = user_data[user_id].get("password", "levi@$618pi")
+        result = create_facebook_account(password)
+        
+        stop_event.set()
+        anim_thread.join(timeout=1)
+        
+        show_account_result(chat_id, loading_msg.message_id, result)
     
-    elif call.data.startswith("price_fltr:"):
-        parts = call.data.split(":")
-        filter_index = int(parts[1])
-        user_id = int(parts[2])
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "❌ Not your file!", show_alert=True)
-            return
-        filters = load_price_filters_sync()
-        gateway_filters = filters.get('shopify_global', DEFAULT_FILTERS)
-        if filter_index >= len(gateway_filters):
-            bot.answer_callback_query(call.id, "❌ Invalid filter!", show_alert=True)
-            return
-        selected_filter = gateway_filters[filter_index]
-        if user_id not in TEMP_FILE_DATA:
-            bot.edit_message_text("❌ File not found!", call.message.chat.id, call.message.message_id)
-            return
-        file_data = TEMP_FILE_DATA.pop(user_id)
-        cards = file_data['cards']
-        sites_data = load_sites_with_price_sync()
-        if not sites_data:
-            bot.edit_message_text("❌ No sites found with prices!", call.message.chat.id, call.message.message_id)
-            return
-        if not selected_filter.get('all', False):
-            filtered_sites = []
-            for s in sites_data:
-                price = s.get('price', 0)
-                if selected_filter['min'] <= price < selected_filter['max']:
-                    filtered_sites.append(s['url'])
-            sites_to_use = filtered_sites
+    # قائمة البلك
+    elif call.data == "menu_bulk":
+        bulk_text = (
+            f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء بالجملة</b>\n'
+            f'<blockquote>حدد العدد المطلوب</blockquote>'
+        )
+        
+        keyboard = [
+            [
+                {
+                    "text": "5",
+                    "callback_data": "bulk_5",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_STAR
+                },
+                {
+                    "text": "10",
+                    "callback_data": "bulk_10",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_STAR
+                },
+                {
+                    "text": "20",
+                    "callback_data": "bulk_20",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_GEM
+                }
+            ],
+            [
+                {
+                    "text": "50",
+                    "callback_data": "bulk_50",
+                    "style": "primary",
+                    "icon_custom_emoji_id": EMOJI_FIRE
+                },
+                {
+                    "text": "100",
+                    "callback_data": "bulk_100",
+                    "style": "primary",
+                    "icon_custom_emoji_id": EMOJI_ROCKET
+                }
+            ],
+            [
+                {
+                    "text": "عدد مخصص",
+                    "callback_data": "bulk_custom",
+                    "style": "primary",
+                    "icon_custom_emoji_id": EMOJI_SETTINGS
+                }
+            ],
+            [
+                {
+                    "text": "رجوع",
+                    "callback_data": "back_to_start",
+                    "style": "danger",
+                    "icon_custom_emoji_id": EMOJI_SHIELD
+                }
+            ]
+        ]
+        
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=bulk_text,
+            parse_mode='HTML',
+            reply_markup=json.dumps({"inline_keyboard": keyboard})
+        )
+    
+    # تنفيذ البلك
+    elif call.data.startswith("bulk_"):
+        if call.data == "bulk_custom":
+            user_data[user_id]["state"] = "waiting_custom_count"
+            prompt_text = (
+                f'<tg-emoji emoji-id="{EMOJI_SETTINGS}">⚙️</tg-emoji> <b>أدخل العدد (1-500)</b>\n'
+                f'<blockquote>أرسل الرقم الآن</blockquote>'
+            )
+            
+            keyboard = [[
+                {
+                    "text": "إلغاء",
+                    "callback_data": "back_to_start",
+                    "style": "danger",
+                    "icon_custom_emoji_id": EMOJI_FAIL
+                }
+            ]]
+            
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=prompt_text,
+                parse_mode='HTML',
+                reply_markup=json.dumps({"inline_keyboard": keyboard})
+            )
         else:
-            sites_to_use = [s['url'] for s in sites_data]
-        if not sites_to_use:
-            bot.edit_message_text(f"❌ No sites found in range {selected_filter['name']}!", call.message.chat.id, call.message.message_id)
-            return
-        bot.edit_message_text(f"🚀 Starting check with filter: {selected_filter['name']}\n\n📊 Sites: {len(sites_to_use)}\n💳 Cards: {len(cards)}", call.message.chat.id, call.message.message_id)
-        threading.Thread(target=start_mass_check, args=(user_id, cards, sites_to_use)).start()
+            count = int(call.data.split("_")[1])
+            process_bulk_accounts(chat_id, user_id, count)
+    
+    # تغيير الباسورد
+    elif call.data == "change_password":
+        user_data[user_id]["state"] = "waiting_password"
+        
+        current_pass = user_data[user_id].get("password", "levi@$618pi")
+        prompt_text = (
+            f'<tg-emoji emoji-id="{EMOJI_KEY}">🔑</tg-emoji> <b>تغيير الباسورد</b>\n'
+            f'<blockquote expandable>الحالي: <code>{current_pass}</code></blockquote>\n'
+            f'<blockquote>أرسل الباسورد الجديد:</blockquote>'
+        )
+        
+        keyboard = [[
+            {
+                "text": "إلغاء",
+                "callback_data": "back_to_start",
+                "style": "danger",
+                "icon_custom_emoji_id": EMOJI_FAIL
+            }
+        ]]
+        
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=prompt_text,
+            parse_mode='HTML',
+            reply_markup=json.dumps({"inline_keyboard": keyboard})
+        )
+    
+    # عن المطور
+    elif call.data == "about_dev":
+        about_text = (
+            f'<tg-emoji emoji-id="{EMOJI_DIAMOND}">💎</tg-emoji> <b>المطور</b>\n'
+            f'<blockquote expandable>\n'
+            f'<b>⎔ الاسم:</b> <a href="https://t.me/netdz02_dev">𝔸𝔹𝕆𝕊𝔾ℝ 𝕐𝔼𝕄𝔼ℕ</a>\n'
+            f'<b>⎔ اليوزر:</b> @yacine_X6\n'
+            f'<b>⎔ القناة:</b> https://t.me/netdz02_dev\n'
+            f'</blockquote>\n'
+            f'<blockquote expandable>\n'
+            f'<b>⚠️ تنبيه هام:</b>\n'
+            f'هذه الأداة للأغراض التعليمية فقط.\n'
+            f'المطور غير مسؤول عن أي استخدام\n'
+            f'خاطئ أو مخالف للقوانين.\n'
+            f'تقع المسؤولية الكاملة على المستخدم.\n'
+            f'</blockquote>'
+        )
+        
+        keyboard = [[
+            {
+                "text": "رجوع",
+                "callback_data": "back_to_start",
+                "style": "danger",
+                "icon_custom_emoji_id": EMOJI_SHIELD
+            }
+        ]]
+        
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=about_text,
+            parse_mode='HTML',
+            reply_markup=json.dumps({"inline_keyboard": keyboard}),
+            disable_web_page_preview=True
+        )
+    
+    # رجوع للرئيسية
+    elif call.data == "back_to_start":
+        bot.delete_message(chat_id, msg_id)
+        send_welcome(call.message)
+    
+    # إنشاء آخر
+    elif call.data == "create_another":
+        loading_msg = bot.send_message(
+            chat_id,
+            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري الإنشاء...</b>',
+            parse_mode='HTML'
+        )
+        
+        stop_event = threading.Event()
+        anim_thread = threading.Thread(target=show_loading_animation, args=(chat_id, loading_msg.message_id, stop_event))
+        anim_thread.start()
+        
+        password = user_data[user_id].get("password", "levi@$618pi")
+        result = create_facebook_account(password)
+        
+        stop_event.set()
+        anim_thread.join(timeout=1)
+        
+        show_account_result(chat_id, loading_msg.message_id, result)
 
-# ==================================================
-# 11. الأوامر العادية
-# ==================================================
-@bot.message_handler(commands=['cc'])
-def cc_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    try:
-        cc_input = message.text.split(' ', 1)[1].strip()
-    except:
-        bot.reply_to(message, "❌ /cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ")
-        return
-    cards = extract_cc(cc_input)
-    if not cards:
-        bot.reply_to(message, "❌ Invalid CC format.")
-        return
-    card = cards[0]
-    status_msg = bot.reply_to(message, f"🔄 Checking <code>{card}</code>...", parse_mode='HTML')
-    sites = load_sites()
-    proxies = load_proxies()
-    if not sites or not proxies:
-        bot.edit_message_text("❌ No sites or proxies available.", status_msg.chat.id, status_msg.message_id)
-        return
-    result = check_card_with_retry_sync(card, sites, proxies, max_retries=3)
-    if result['status'] == 'Charged':
-        status_header = "💎 CHARGED"
-    elif result['status'] == 'Approved':
-        status_header = "✅ APPROVED"
-    else:
-        status_header = "❌ DECLINED"
-    final_resp = f"""{status_header}
-💳 CC <code>{result['card']}</code>
-🛒 Gᴀᴛᴇᴡᴀʏ {result.get('gateway', 'Unknown')}
-📝 Rᴇsᴘᴏɴsᴇ {result['message'][:100]}
-💸 Pʀɪᴄᴇ {result.get('price', '-')}"""
-    bot.edit_message_text(final_resp, status_msg.chat.id, status_msg.message_id, parse_mode='HTML')
 
-@bot.message_handler(commands=['chk'])
-def chk_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    process_file_with_filters(message, user_id)
-
-@bot.message_handler(commands=['addproxy'])
-def addproxy_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    text = message.text
-    lines = text.split('\n')
-    if len(lines) < 2:
-        bot.reply_to(message, "❌ /addproxy followed by proxies, one per line.")
-        return
-    proxies_to_add = [line.strip() for line in lines[1:] if line.strip()]
-    if not proxies_to_add:
-        bot.reply_to(message, "❌ No proxies provided.")
-        return
-    current_proxies = load_proxies()
-    new_proxies = [p for p in proxies_to_add if p not in current_proxies]
-    if not new_proxies:
-        bot.reply_to(message, "⚠️ All proxies already exist.")
-        return
-    with open(PROXY_FILE, 'a') as f:
-        for proxy in new_proxies:
-            f.write(f"{proxy}\n")
-    bot.reply_to(message, f"✅ Added {len(new_proxies)} proxies!")
-
-@bot.message_handler(commands=['proxy'])
-def proxy_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    proxies = load_proxies()
-    if not proxies:
-        bot.reply_to(message, "❌ No proxies.")
-        return
-    status_msg = bot.reply_to(message, f"🔄 Checking {len(proxies)} proxies...")
-    alive_proxies = []
-    dead_proxies = []
-    for i, proxy in enumerate(proxies):
-        result = test_proxy_sync(proxy)
-        if result['status'] == 'alive':
-            alive_proxies.append(proxy)
+def process_bulk_accounts(chat_id, user_id, count):
+    """إنشاء مجموعة حسابات وإرسال كل حساب برسالة منفصلة فور إنشائه"""
+    loading_msg = bot.send_message(
+        chat_id,
+        f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>تجهيز {count} حساب...</b>',
+        parse_mode='HTML'
+    )
+    
+    password = user_data[user_id].get("password", "levi@$618pi")
+    success_list = []
+    fail_count = 0
+    
+    for i in range(1, count + 1):
+        progress = int(i / count * 100)
+        bar = "▰" * (progress // 10) + "▱" * (10 - progress // 10)
+        
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=loading_msg.message_id,
+                text=(
+                    f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء {count} حساب</b>\n'
+                    f'<blockquote expandable>\n'
+                    f'<b>التقدم:</b> {i}/{count}\n'
+                    f'<b>الشريط:</b> [{bar}] {progress}%\n'
+                    f'<b>ناجح:</b> {len(success_list)} | <b>فاشل:</b> {fail_count}\n'
+                    f'</blockquote>'
+                ),
+                parse_mode='HTML'
+            )
+        except:
+            pass
+        
+        result = create_facebook_account(password)
+        
+        if result["success"]:
+            success_list.append(result)
+            global_stats["created"] += 1
+            
+            # إرسال الحساب في رسالة منفصلة بصندوق مطوي فور إنشائه
+            acc_text = (
+                f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم إنشاء حساب بنجاح ({len(success_list)})</b>\n'
+                f'<blockquote expandable>\n'
+                f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
+                f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
+                f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
+                f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
+                f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
+                f'</blockquote>'
+            )
+            bot.send_message(chat_id, acc_text, parse_mode='HTML')
+            open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n')
+            
         else:
-            dead_proxies.append(proxy)
-        if i % 10 == 0:
-            bot.edit_message_text(f"🔄 Checking proxies...\n✅ Alive: {len(alive_proxies)}\n❌ Dead: {len(dead_proxies)}/{len(proxies)}", status_msg.chat.id, status_msg.message_id)
-    with open(PROXY_FILE, 'w') as f:
-        for proxy in alive_proxies:
-            f.write(f"{proxy}\n")
-    bot.edit_message_text(f"✅ Proxy check complete!\nTotal: {len(proxies)}\nAlive: {len(alive_proxies)}\nRemoved: {len(dead_proxies)}", status_msg.chat.id, status_msg.message_id)
-
-@bot.message_handler(commands=['chkproxy'])
-def chkproxy_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
+            fail_count += 1
+            global_stats["failed"] += 1
+        
+        if i < count:
+            time.sleep(random.randint(5, 10))
+    
+    # حذف رسالة التحميل المستمرة
     try:
-        proxy = message.text.split(' ', 1)[1].strip()
+        bot.delete_message(chat_id, loading_msg.message_id)
     except:
-        bot.reply_to(message, "❌ /chkproxy ɪᴘ:ᴘᴏʀᴛ:ᴜsᴇʀ:ᴘᴀss")
-        return
-    status_msg = bot.reply_to(message, f"🔄 Checking proxy...")
-    result = test_proxy_sync(proxy)
-    if result['status'] == 'alive':
-        bot.edit_message_text(f"✅ Proxy is ALIVE!\n<code>{proxy}</code>", status_msg.chat.id, status_msg.message_id, parse_mode='HTML')
+        pass
+    
+    now = datetime.now()
+    
+    # رسالة الملخص النهائي مع الأزرار
+    final_text = (
+        f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>اكتمل الإنشاء بالجملة!</b>\n'
+        f'<blockquote expandable>\n'
+        f'✅ <b>ناجح:</b> {len(success_list)}\n'
+        f'❌ <b>فاشل:</b> {fail_count}\n'
+        f'⏱️ <b>{now.strftime("%H:%M:%S")}</b>\n'
+        f'</blockquote>'
+    )
+    
+    keyboard = [
+        [
+            {
+                "text": "إنشاء آخر",
+                "callback_data": "create_another",
+                "style": "success",
+                "icon_custom_emoji_id": EMOJI_ROCKET
+            }
+        ],
+        [
+            {
+                "text": "رجوع",
+                "callback_data": "back_to_start",
+                "style": "danger",
+                "icon_custom_emoji_id": EMOJI_SHIELD
+            }
+        ]
+    ]
+    
+    bot.send_message(
+        chat_id,
+        final_text,
+        parse_mode='HTML',
+        reply_markup=json.dumps({"inline_keyboard": keyboard})
+    )
+
+
+def show_account_result(chat_id, msg_id, result):
+    """عرض نتيجة إنشاء حساب واحد"""
+    if result["success"]:
+        global_stats["created"] += 1
+        
+        success_text = (
+            f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم الإنشاء بنجاح</b>\n'
+            f'<blockquote expandable>\n'
+            f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
+            f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
+            f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
+            f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
+            f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
+            f'</blockquote>'
+        )
+        
+        open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n')
+        
+        keyboard = [
+            [
+                {
+                    "text": "إنشاء آخر",
+                    "callback_data": "create_another",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_ROCKET
+                },
+                {
+                    "text": "رجوع",
+                    "callback_data": "back_to_start",
+                    "style": "danger",
+                    "icon_custom_emoji_id": EMOJI_SHIELD
+                }
+            ]
+        ]
+    
     else:
-        bot.edit_message_text(f"❌ Proxy is DEAD!\n<code>{proxy}</code>", status_msg.chat.id, status_msg.message_id, parse_mode='HTML')
+        global_stats["failed"] += 1
+        
+        success_text = (
+            f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>فشل الإنشاء</b>\n'
+            f'<blockquote expandable>{result["error"][:150]}</blockquote>'
+        )
+        
+        keyboard = [
+            [
+                {
+                    "text": "محاولة أخرى",
+                    "callback_data": "create_another",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_ROCKET
+                },
+                {
+                    "text": "رجوع",
+                    "callback_data": "back_to_start",
+                    "style": "danger",
+                    "icon_custom_emoji_id": EMOJI_SHIELD
+                }
+            ]
+        ]
+    
+    bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=msg_id,
+        text=success_text,
+        parse_mode='HTML',
+        reply_markup=json.dumps({"inline_keyboard": keyboard})
+    )
 
-@bot.message_handler(commands=['rmproxy'])
-def rmproxy_command(message):
+
+@bot.message_handler(func=lambda message: True)
+def handle_messages(message):
     user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    try:
-        proxy_to_remove = message.text.split(' ', 1)[1].strip()
-    except:
-        bot.reply_to(message, "❌ /rmproxy ɪᴘ:ᴘᴏʀᴛ:ᴜsᴇʀ:ᴘᴀss")
-        return
-    current_proxies = load_proxies()
-    if proxy_to_remove not in current_proxies:
-        bot.reply_to(message, f"❌ Proxy not found.")
-        return
-    new_proxies = [p for p in current_proxies if p != proxy_to_remove]
-    with open(PROXY_FILE, 'w') as f:
-        for proxy in new_proxies:
-            f.write(f"{proxy}\n")
-    bot.reply_to(message, f"✅ Removed proxy!")
+    chat_id = message.chat.id
+    
+    if user_id not in user_data:
+        user_data[user_id] = {"password": "levi@$618pi", "state": "idle"}
+    
+    state = user_data[user_id].get("state", "idle")
+    
+    if state == "waiting_password":
+        new_pass = message.text.strip()
+        user_data[user_id]["password"] = new_pass
+        user_data[user_id]["state"] = "idle"
+        
+        success_text = (
+            f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم تحديث الباسورد</b>\n'
+            f'<blockquote expandable>الجديد: <code>{new_pass}</code></blockquote>'
+        )
+        
+        keyboard = [[
+            {
+                "text": "رجوع للرئيسية",
+                "callback_data": "back_to_start",
+                "style": "danger",
+                "icon_custom_emoji_id": EMOJI_SHIELD
+            }
+        ]]
+        
+        bot.send_message(
+            chat_id,
+            success_text,
+            parse_mode='HTML',
+            reply_markup=json.dumps({"inline_keyboard": keyboard})
+        )
+    
+    elif state == "waiting_custom_count":
+        try:
+            count = int(message.text.strip())
+            if count < 1:
+                raise ValueError
+            if count > 500:
+                count = 500
+            
+            user_data[user_id]["state"] = "idle"
+            process_bulk_accounts(chat_id, user_id, count)
+        except:
+            error_text = (
+                f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>خطأ</b>\n'
+                f'<blockquote>أدخل رقم صحيح (1-500)</blockquote>'
+            )
+            bot.send_message(chat_id, error_text, parse_mode='HTML')
 
-@bot.message_handler(commands=['rmproxyindex'])
-def rmproxyindex_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    try:
-        indices_str = message.text.split(' ', 1)[1].strip()
-        indices = [int(i.strip()) - 1 for i in indices_str.split(',')]
-    except:
-        bot.reply_to(message, "❌ /rmproxyindex 1,2,3")
-        return
-    current_proxies = load_proxies()
-    if not current_proxies:
-        bot.reply_to(message, "❌ No proxies.")
-        return
-    removed = []
-    new_proxies = []
-    for i, proxy in enumerate(current_proxies):
-        if i in indices:
-            removed.append(proxy)
-        else:
-            new_proxies.append(proxy)
-    if not removed:
-        bot.reply_to(message, "❌ No valid indices.")
-        return
-    with open(PROXY_FILE, 'w') as f:
-        for proxy in new_proxies:
-            f.write(f"{proxy}\n")
-    bot.reply_to(message, f"✅ Removed {len(removed)} proxies!")
 
-@bot.message_handler(commands=['clearproxy'])
-def clearproxy_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    current_proxies = load_proxies()
-    count = len(current_proxies)
-    if count == 0:
-        bot.reply_to(message, "❌ No proxies.")
-        return
-    with open(PROXY_FILE, 'w') as f:
-        f.write("")
-    bot.reply_to(message, f"✅ Cleared all {count} proxies!")
-
-@bot.message_handler(commands=['getproxy'])
-def getproxy_command(message):
-    user_id = message.from_user.id
-    if not is_premium(user_id):
-        bot.reply_to(message, "❌ Premium only.")
-        return
-    current_proxies = load_proxies()
-    if not current_proxies:
-        bot.reply_to(message, "❌ No proxies.")
-        return
-    if len(current_proxies) <= 50:
-        proxy_list = "\n".join([f"{i+1}. <code>{p}</code>" for i, p in enumerate(current_proxies)])
-        bot.reply_to(message, f"📋 All Proxies ({len(current_proxies)}):\n\n{proxy_list}", parse_mode='HTML')
-    else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"proxies_{user_id}_{timestamp}.txt"
-        with open(filename, 'w') as f:
-            for i, proxy in enumerate(current_proxies):
-                f.write(f"{i+1}. {proxy}\n")
-        with open(filename, 'rb') as f:
-            bot.send_document(message.chat.id, f, caption=f"📋 All Proxies ({len(current_proxies)})")
-        os.remove(filename)
-
-@bot.message_handler(commands=['redeem'])
-def redeem_command(message):
-    user_id = message.from_user.id
-    try:
-        key = message.text.split(' ', 1)[1].strip().upper()
-    except:
-        bot.reply_to(message, "📝 /redeem Kᴇʏ")
-        return
-    keys_data = load_keys_sync()
-    if key not in keys_data:
-        bot.reply_to(message, "❌ Invalid Key!")
-        return
-    key_data = keys_data[key]
-    if key_data.get('type') == 'time_limit':
-        expiry = datetime.fromisoformat(key_data['expiry'])
-        if datetime.now() > expiry:
-            bot.reply_to(message, "❌ Key expired!")
-            return
-        if key_data['used_count'] >= key_data['user_limit']:
-            bot.reply_to(message, f"❌ Key limit reached.")
-            return
-        user_id_str = str(user_id)
-        if user_id_str in key_data['used_by']:
-            bot.reply_to(message, "❌ You already used this key!")
-            return
-        if is_premium(user_id):
-            bot.reply_to(message, "❌ You already have premium!")
-            return
-        add_premium_user_sync(user_id)
-        key_data['used_count'] += 1
-        key_data['used_by'].append(user_id_str)
-        keys_data[key] = key_data
-        save_keys_sync(keys_data)
-        bot.reply_to(message, f"""🎉 Congratulations!
-⭐ VIP Access Activated!
-📅 Duration: {key_data['hours']} hours""")
-
-# ==================================================
-# 12. الأوامر الإدارية (للمطور فقط)
-# ==================================================
-@bot.message_handler(commands=['addpremium'])
-def addpremium_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    try:
-        target_id = int(message.text.split(' ', 1)[1].strip())
-    except:
-        bot.reply_to(message, "📝 /addpremium ᴜsᴇʀ_ɪᴅ")
-        return
-    if add_premium_user_sync(target_id):
-        bot.reply_to(message, f"✅ User <code>{target_id}</code> added!", parse_mode='HTML')
-    else:
-        bot.reply_to(message, f"⚠️ User <code>{target_id}</code> already premium.", parse_mode='HTML')
-
-@bot.message_handler(commands=['removepremium'])
-def removepremium_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    try:
-        target_id = int(message.text.split(' ', 1)[1].strip())
-    except:
-        bot.reply_to(message, "📝 /removepremium ᴜsᴇʀ_ɪᴅ")
-        return
-    if remove_premium_user_sync(target_id):
-        bot.reply_to(message, f"✅ User <code>{target_id}</code> removed!", parse_mode='HTML')
-    else:
-        bot.reply_to(message, f"⚠️ User <code>{target_id}</code> not premium.", parse_mode='HTML')
-
-@bot.message_handler(commands=['listpremium'])
-def listpremium_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    users = load_premium_users()
-    if not users:
-        bot.reply_to(message, "📭 No premium users.")
-        return
-    bot.reply_to(message, f"👑 Premium Users ({len(users)}):\n" + "\n".join([f"• <code>{u}</code>" for u in users]), parse_mode='HTML')
-
-@bot.message_handler(commands=['genkeys'])
-def genkeys_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    try:
-        parts = message.text.split()
-        amount, hours, user_limit = int(parts[1]), int(parts[2]), int(parts[3])
-    except:
-        bot.reply_to(message, "📝 /genkeys ᴀᴍᴏᴜɴᴛ ʜᴏᴜʀs ʟɪᴍɪᴛ")
-        return
-    keys_data = load_keys_sync()
-    generated = []
-    for _ in range(amount):
-        key = generate_key()
-        keys_data[key] = {
-            'type': 'time_limit', 'hours': hours,
-            'expiry': (datetime.now() + timedelta(hours=hours)).isoformat(),
-            'user_limit': user_limit, 'used_count': 0, 'used_by': []
-        }
-        generated.append(key)
-    save_keys_sync(keys_data)
-    bot.reply_to(message, f"⭐ {amount} Keys Generated!\n" + "\n".join([f"<code>{k}</code>" for k in generated]), parse_mode='HTML')
-
-@bot.message_handler(commands=['addsites'])
-def addsites_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    if not message.reply_to_message or not message.reply_to_message.document:
-        bot.reply_to(message, "📝 Reply to a .txt file.")
-        return
-    try:
-        file_info = bot.get_file(message.reply_to_message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        sites = downloaded_file.decode('utf-8').splitlines()
-        sites = [s.strip() for s in sites if s.strip()]
-        if not sites:
-            bot.reply_to(message, "❌ No sites found.")
-            return
-        current_sites = load_sites()
-        new_sites = [s for s in sites if s not in current_sites]
-        if not new_sites:
-            bot.reply_to(message, "⚠️ All sites already exist.")
-            return
-        with open(SITES_FILE, 'a') as f:
-            for site in new_sites:
-                f.write(f"{site}\n")
-        bot.reply_to(message, f"✅ Added {len(new_sites)} sites!")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}")
-
-@bot.message_handler(commands=['site'])
-def site_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    sites = load_sites()
-    if not sites:
-        bot.reply_to(message, "❌ No sites.")
-        return
-    proxies = load_proxies()
-    if not proxies:
-        bot.reply_to(message, "❌ No proxies.")
-        return
-    status_msg = bot.reply_to(message, f"🔄 Checking {len(sites)} sites...")
-    alive_sites = []
-    dead_sites = []
-    sites_with_price = []
-    for i, site in enumerate(sites):
-        result = test_site_with_price_sync(site, random.choice(proxies))
-        if result['status'] == 'alive':
-            alive_sites.append(site)
-            sites_with_price.append({'url': site, 'price': result.get('price', 0.0)})
-        else:
-            dead_sites.append(site)
-        if i % 5 == 0:
-            bot.edit_message_text(f"🔄 Checking sites...\n✅ Alive: {len(alive_sites)}\n❌ Dead: {len(dead_sites)}/{len(sites)}", status_msg.chat.id, status_msg.message_id)
-    with open(SITES_FILE, 'w') as f:
-        for site in alive_sites:
-            f.write(f"{site}\n")
-    save_sites_with_price_sync(sites_with_price)
-    bot.edit_message_text(f"✅ Site check complete!\nTotal: {len(sites)}\nAlive: {len(alive_sites)}\nRemoved: {len(dead_sites)}", status_msg.chat.id, status_msg.message_id)
-
-@bot.message_handler(commands=['rm'])
-def rm_site_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    try:
-        url_to_remove = message.text.split(' ', 1)[1].strip()
-    except:
-        bot.reply_to(message, "❌ /rm ʜᴛᴛᴘs://sɪᴛᴇ.ᴄᴏᴍ")
-        return
-    current_sites = load_sites()
-    if url_to_remove not in current_sites:
-        bot.reply_to(message, f"❌ Site not found.")
-        return
-    new_sites = [s for s in current_sites if s != url_to_remove]
-    with open(SITES_FILE, 'w') as f:
-        for site in new_sites:
-            f.write(f"{site}\n")
-    bot.reply_to(message, f"✅ Site removed!")
-
-@bot.message_handler(commands=['getsites'])
-def getsites_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    sites = load_sites()
-    if not sites:
-        bot.reply_to(message, "❌ No sites.")
-        return
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"sites_{timestamp}.txt"
-    with open(filename, 'w') as f:
-        for site in sites:
-            f.write(f"{site}\n")
-    with open(filename, 'rb') as f:
-        bot.send_document(message.chat.id, f, caption=f"📋 All Sites ({len(sites)})")
-    os.remove(filename)
-
-@bot.message_handler(commands=['setfilter'])
-def setfilter_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    try:
-        parts = message.text.split(maxsplit=3)
-        gateway = parts[1]
-        range_str = parts[2]
-        name = parts[3].strip()
-        min_val, max_val = map(float, range_str.split('-'))
-        filters = load_price_filters_sync()
-        if gateway not in filters:
-            filters[gateway] = []
-        filters[gateway].append({"name": name, "min": min_val, "max": max_val})
-        save_price_filters_sync(filters)
-        bot.reply_to(message, f"✅ Filter added: {name}\n💰 {min_val:.0f} - {max_val:.0f}")
-    except:
-        bot.reply_to(message, "📝 /setfilter shopify_global ᴍɪɴ-ᴍᴀx \"Nᴀᴍᴇ\"")
-
-@bot.message_handler(commands=['listfilters'])
-def listfilters_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    filters = load_price_filters_sync()
-    if not filters:
-        bot.reply_to(message, "📭 No filters.")
-        return
-    text = "🔧 Price Filters\n\n"
-    for gateway, gateway_filters in filters.items():
-        text += f"🛒 {gateway.upper()}\n"
-        for i, f in enumerate(gateway_filters, 1):
-            text += f"   {i}. {f['name']} ({f['min']:.0f}-{f['max']:.0f})\n"
-        text += "\n"
-    bot.reply_to(message, text)
-
-@bot.message_handler(commands=['removefilter'])
-def removefilter_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    try:
-        parts = message.text.split()
-        gateway = parts[1].lower()
-        filter_num = int(parts[2]) - 1
-        filters = load_price_filters_sync()
-        if gateway not in filters or filter_num >= len(filters[gateway]):
-            bot.reply_to(message, f"❌ Invalid filter.")
-            return
-        removed = filters[gateway].pop(filter_num)
-        save_price_filters_sync(filters)
-        bot.reply_to(message, f"✅ Filter removed: {removed['name']}")
-    except:
-        bot.reply_to(message, "📝 /removefilter ɢᴀᴛᴇᴡᴀʏ ɴᴜᴍʙᴇʀ")
-
-@bot.message_handler(commands=['stats'])
-def stats_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    premium_users = load_premium_users()
-    sites = load_sites()
-    proxies = load_proxies()
-    bot.reply_to(message, f"""📊 Bot Statistics
-👑 Admins: 1
-💎 Premium Users: {len(premium_users)}
-🌐 Sites: {len(sites)}
-🔌 Proxies: {len(proxies)}
-🤖 Status: Running ✅""")
-
-@bot.message_handler(commands=['sethits'])
-def sethits_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    global HITS_CHANNEL_ID
-    try:
-        HITS_CHANNEL_ID = int(message.text.split(' ', 1)[1].strip())
-        bot.reply_to(message, f"✅ Hits channel set to: <code>{HITS_CHANNEL_ID}</code>", parse_mode='HTML')
-    except:
-        bot.reply_to(message, "📝 /sethits -1001234567890")
-
-@bot.message_handler(commands=['hits'])
-def hits_command(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "❌ Admin only.")
-        return
-    global HITS_CHANNEL_ID
-    if HITS_CHANNEL_ID == 0:
-        bot.reply_to(message, "❌ Hits channel not set.")
-        return
-    if HITS_CHANNEL_ID < 0:
-        HITS_CHANNEL_ID = abs(HITS_CHANNEL_ID)
-        bot.reply_to(message, "❌ Hits channel turned OFF")
-    else:
-        HITS_CHANNEL_ID = -abs(HITS_CHANNEL_ID)
-        bot.reply_to(message, "✅ Hits channel turned ON")
-
-# ==================================================
-# 13. تشغيل البوت
-# ==================================================
-if __name__ == "__main__":
-    print("✅ Bᴏᴛ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ (باستخدام telebot مع Premium Emoji)!")
-    bot.infinity_polling()
+print(" رروح شوفو يعمل...")
+bot.infinity_polling()
