@@ -3,7 +3,6 @@ import re
 import json
 import random
 import time
-import asyncio
 import threading
 import requests
 from datetime import datetime, timedelta
@@ -11,7 +10,7 @@ import telebot
 from telebot import types
 
 # ==================================================
-# 1. البيانات الأساسية
+# 1. البيانات الأساسية (بدون API_HASH)
 # ==================================================
 BOT_TOKEN = "8250378472:AAFH_JgQVbOUnCUvYQaOnLMnrWi4G_MCDZY"
 ADMIN_ID = 6936293942
@@ -32,6 +31,43 @@ active_sessions = {}
 TEMP_FILE_DATA = {}
 SHOPIFY_SESSION_RESULTS = {}
 
+# ==================================================
+# 3. قاموس الإيموجي المخصص (لـ Premium)
+# ==================================================
+PREMIUM_EMOJI_IDS = {
+    "✅": "5444987348334965906", "❌": "5447647474984449520", "🔥": "5116414868357907335",
+    "⚡": "5219943216781995020", "💳": "5447453226498552490", "💠": "5870498447068502918",
+    "📝": "5343649643685240676", "🌐": "5447602197439218445", "📊": "5445146408153806223",
+    "📦": "5303102515301083665", "📋": "4904936030232117798", "⏳": "5258113901106580375",
+    "🚀": "4904936030232117798", "⚠️": "4915853119839011973", "💎": "5343636681473935403",
+    "👋": "5134476056241112076", "💡": "5301275719681190738", "📈": "5134457377428341766",
+    "🔢": "5305652587708572354", "🔌": "5120722716260828125", "⭐️": "5172716095697584957",
+    "🆓": "5406756500108501710", "👑": "6266995104687330978", "🔍": "5258396243666681152",
+    "⏱️": "5343927661213279013", "💥": "5122933683820430249", "🆔": "5447311106030726740",
+    "👤": "5445174334031166029", "📅": "5116575178012235794", "🔄": "5454245266305604993",
+    "🏦": "5445408306669582934", "🥰": "5444931419270839381", "😱": "5447181973544008180",
+    "🔷": "5258024802010026053", "🔑": "5454386656628991407", "📆": "5454074580010295588",
+    "👥": "5454371323595744068", "🥕": "5447653032672129347", "➡️": "5445350109862720603",
+    "🦉": "5123344136665039833", "🍑": "5445408306669582934", "💪": "5305622454218024328",
+    "🌝": "5341684837881235158", "📁": "5444908424015934570", "ℹ️": "5289930378885214069",
+    "💀": "5231338559587257737", "📢": "5116445341150872576", "💰": "5116648080787112958",
+    "🔘": "5219901967916084166", "🔗": "5447479640547428304", "👇": "5122933683820430249",
+    "📌": "5447187153274567373", "🍳": "5305622454218024328", "💸": "5283232570660634549",
+    "🎉": "5172632227871196306", "🎁": "5283031441637148958",
+    "🚫": "5116151848855667552",
+    "🛒": "5447319442562251569", "🔧": "4904936030232117798",
+    "⛔️": "5275969776668134187", "🥲": "4904468402782864209",
+    "☠️": "5231338559587257737", "🛡": "5219672809936006424",
+    "📸": "5445344161333015312", "💬": "5447510826304959724",
+    "😺": "5118590136149345664", "🌍": "5303440357428586778",
+    "🔹": "5429436388447655367", "📹": "5445158077579952110",
+    "📡": "5447448489149625830", "🌟": "5310224206732996002",
+    "📍": "5447187153274567373", "🔐": "5258476306152038031",
+    "😇": "6321225560789877992", "👌": "5445350109862720603",
+    "⭐": "6267298050205553492", "🍭": "6267152480878990865",
+    "⚙️": "5258023599419171861", "⛔": "4918014360267260850",
+}
+
 DEFAULT_FILTERS = [
     {"name": "0~10", "min": 0, "max": 10},
     {"name": "10~50", "min": 10, "max": 50},
@@ -41,12 +77,43 @@ DEFAULT_FILTERS = [
 ]
 
 # ==================================================
-# 3. إنشاء البوت
+# 4. إنشاء البوت
 # ==================================================
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==================================================
-# 4. الدوال المساعدة
+# 5. دالة الإيموجي المخصص
+# ==================================================
+def premium_emoji(text: str):
+    """تحويل النص إلى رسالة تحتوي على إيموجي مخصص (Premium)."""
+    if not text:
+        return text, []
+    result = text
+    entities = []
+    offset = 0
+    for emoji, emoji_id in PREMIUM_EMOJI_IDS.items():
+        start = 0
+        while True:
+            start = result.find(emoji, start)
+            if start == -1:
+                break
+            # حساب الإزاحة الصحيحة مع الأخذ بعين الاعتبار الإيموجي السابقة
+            actual_offset = start
+            entities.append(
+                types.MessageEntity(
+                    type="custom_emoji",
+                    offset=actual_offset,
+                    length=len(emoji),
+                    custom_emoji_id=emoji_id
+                )
+            )
+            start += len(emoji)
+    # ترتيب الكيانات حسب الموقع
+    entities.sort(key=lambda e: e.offset)
+    return result, entities
+
+# ==================================================
+# 6. الدوال المساعدة
 # ==================================================
 def get_file_lines(filepath):
     if not os.path.exists(filepath):
@@ -182,9 +249,8 @@ def extract_cc(text):
             year = '20' + year
         cards.append(f"{card}|{month}|{year}|{cvv}")
     return cards
-
 # ==================================================
-# 5. دوال الفحص (متزامنة)
+# 7. دوال الفحص (متزامنة)
 # ==================================================
 def check_card_sync(card, site, proxy):
     try:
@@ -302,14 +368,98 @@ def test_proxy_sync(proxy):
         return {'proxy': proxy, 'status': 'dead'}
 
 # ==================================================
-# 6. أوامر البوت الرئيسية
+# 8. دوال معالجة الملفات
+# ==================================================
+def process_file_with_filters(message, user_id):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        bot.reply_to(message, "❌ Please reply to a .txt file.")
+        return
+    try:
+        file_info = bot.get_file(message.reply_to_message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        content = downloaded_file.decode('utf-8', errors='ignore')
+        cards = extract_cc(content)
+        if not cards:
+            bot.reply_to(message, "❌ No valid cards found.")
+            return
+        TEMP_FILE_DATA[user_id] = {'cards': cards, 'file_path': None}
+        filters = load_price_filters_sync()
+        gateway_filters = filters.get('shopify_global', DEFAULT_FILTERS)
+        keyboard = types.InlineKeyboardMarkup(row_width=2)
+        for i, f in enumerate(gateway_filters):
+            keyboard.add(types.InlineKeyboardButton(f["name"], callback_data=f"price_fltr:{i}:{user_id}"))
+        keyboard.add(types.InlineKeyboardButton("Cancel", callback_data="cancel_filter"))
+        bot.reply_to(message, f"📁 File loaded: {len(cards)} cards!\n\n💰 Select a price filter:", reply_markup=keyboard)
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
+
+# ==================================================
+# 9. دوال الفحص الجماعي (Mass Check)
+# ==================================================
+def start_mass_check(user_id, cards, sites):
+    if not sites:
+        bot.send_message(user_id, "❌ No sites available!")
+        return
+    proxies = load_proxies()
+    if not proxies:
+        bot.send_message(user_id, "❌ No proxies available!")
+        return
+    status_msg = bot.send_message(user_id, f"🔥 Starting check for {len(cards)} cards...")
+    all_results = {
+        'charged': [], 'approved': [], 'dead': [],
+        'total': len(cards), 'checked': 0,
+        'start_time': time.time(),
+        'last_card': '', 'last_response': '', 'last_price': '-'
+    }
+    try:
+        for idx, card in enumerate(cards):
+            current_sites = sites
+            current_proxies = load_proxies()
+            if not current_sites or not current_proxies:
+                break
+            res = check_card_with_retry_sync(card, current_sites, current_proxies, max_retries=2)
+            all_results['checked'] += 1
+            all_results['last_card'] = card
+            all_results['last_response'] = res.get('message', '')[:50]
+            all_results['last_price'] = res.get('price', '-')
+            if res['status'] == 'Charged':
+                all_results['charged'].append(res)
+                bot.send_message(user_id, f"💎 Charged: <code>{card}</code>", parse_mode='HTML')
+            elif res['status'] == 'Approved':
+                all_results['approved'].append(res)
+                bot.send_message(user_id, f"✅ Approved: <code>{card}</code>", parse_mode='HTML')
+            else:
+                all_results['dead'].append(res)
+            if idx % 10 == 0:
+                elapsed = int(time.time() - all_results['start_time'])
+                progress_text = f"""💳 Card: <code>{card[:16]}</code>
+📝 {res.get('message', '')[:16]}
+💰 {res.get('price', '-')}
+📊 {all_results['checked']}/{all_results['total']}
+⏱️ {elapsed}s"""
+                bot.edit_message_text(progress_text, status_msg.chat.id, status_msg.message_id, parse_mode='HTML')
+        # إرسال النتائج النهائية
+        summary = f"""✅ Check Complete!
+📊 Results:
+   ┣ ✅ Charged: {len(all_results['charged'])}
+   ┣ 🔥 Approved: {len(all_results['approved'])}
+   ┣ ❌ Declined: {len(all_results['dead'])}
+   ┗ 📊 Total: {all_results['total']}"""
+        bot.send_message(user_id, summary)
+        SHOPIFY_SESSION_RESULTS[user_id] = all_results
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {e}")
+    finally:
+        bot.delete_message(status_msg.chat.id, status_msg.message_id)
+# ==================================================
+# 10. أوامر البوت الرئيسية
 # ==================================================
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
     is_prem = is_premium(user_id)
     username = message.from_user.username or "User"
-    plan = "🆓 Fʀᴇᴇ" if not is_prem else "⭐ Pʀᴇᴍɪᴜᴍ"
+    plan = "🆓 Free" if not is_prem else "⭐ Premium"
     
     welcome_text = f"""Wᴇʟᴄᴏᴍᴇ @{username}!
 👑 Pʟᴀɴ: {plan}
@@ -319,6 +469,9 @@ def start(message):
    🔑 /redeem Kᴇʏ
 💡 Bᴏᴛ Dᴇᴠ @yacine_X6"""
     
+    # معالجة الإيموجي المخصص
+    processed_text, entities = premium_emoji(welcome_text)
+    
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     btn1 = types.InlineKeyboardButton("Cᴍᴅ", callback_data="show_cmds")
     btn2 = types.InlineKeyboardButton("Cʜᴀɴɴᴇʟ", url="https://t.me/netdz02_dev")
@@ -326,7 +479,9 @@ def start(message):
     if user_id == ADMIN_ID:
         btn3 = types.InlineKeyboardButton("Aᴅᴍɪɴ Pᴀɴᴇʟ", callback_data="admin_panel")
         keyboard.add(btn3)
-    bot.reply_to(message, welcome_text, reply_markup=keyboard)
+    
+    # إرسال الرسالة مع الإيموجي المخصص
+    bot.send_message(message.chat.id, processed_text, reply_markup=keyboard, entities=entities)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -345,13 +500,14 @@ def callback_handler(call):
 └─ /getproxy
 🔑 Kᴇʏ Sʏsᴛᴇᴍ
 └─ /redeem Kᴇʏ"""
+        processed_text, entities = premium_emoji(commands_text)
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton("Bᴀᴄᴋ", callback_data="main_menu"))
-        bot.edit_message_text(commands_text, call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+        bot.edit_message_text(processed_text, call.message.chat.id, call.message.message_id, reply_markup=keyboard, entities=entities)
     
     elif call.data == "admin_panel":
         if call.from_user.id != ADMIN_ID:
-            bot.answer_callback_query(call.id, "❌ Aᴅᴍɪɴ ᴏɴʟʏ.", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ Admin only.", show_alert=True)
             return
         admin_text = """👑 Aᴅᴍɪɴ Pᴀɴᴇʟ
 📋 Pʀᴇᴍɪᴜᴍ Mᴀɴᴀɢᴇᴍᴇɴᴛ
@@ -366,15 +522,59 @@ def callback_handler(call):
 └─ /getsites
 📊 Sᴛᴀᴛs
 └─ /stats"""
+        processed_text, entities = premium_emoji(admin_text)
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton("Bᴀᴄᴋ", callback_data="main_menu"))
-        bot.edit_message_text(admin_text, call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+        bot.edit_message_text(processed_text, call.message.chat.id, call.message.message_id, reply_markup=keyboard, entities=entities)
     
     elif call.data == "main_menu":
         start(call.message)
+    
+    elif call.data == "cancel_filter":
+        user_id = call.from_user.id
+        if user_id in TEMP_FILE_DATA:
+            TEMP_FILE_DATA.pop(user_id)
+        bot.edit_message_text("❌ Cancelled.", call.message.chat.id, call.message.message_id)
+    
+    elif call.data.startswith("price_fltr:"):
+        parts = call.data.split(":")
+        filter_index = int(parts[1])
+        user_id = int(parts[2])
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Not your file!", show_alert=True)
+            return
+        filters = load_price_filters_sync()
+        gateway_filters = filters.get('shopify_global', DEFAULT_FILTERS)
+        if filter_index >= len(gateway_filters):
+            bot.answer_callback_query(call.id, "❌ Invalid filter!", show_alert=True)
+            return
+        selected_filter = gateway_filters[filter_index]
+        if user_id not in TEMP_FILE_DATA:
+            bot.edit_message_text("❌ File not found!", call.message.chat.id, call.message.message_id)
+            return
+        file_data = TEMP_FILE_DATA.pop(user_id)
+        cards = file_data['cards']
+        sites_data = load_sites_with_price_sync()
+        if not sites_data:
+            bot.edit_message_text("❌ No sites found with prices!", call.message.chat.id, call.message.message_id)
+            return
+        if not selected_filter.get('all', False):
+            filtered_sites = []
+            for s in sites_data:
+                price = s.get('price', 0)
+                if selected_filter['min'] <= price < selected_filter['max']:
+                    filtered_sites.append(s['url'])
+            sites_to_use = filtered_sites
+        else:
+            sites_to_use = [s['url'] for s in sites_data]
+        if not sites_to_use:
+            bot.edit_message_text(f"❌ No sites found in range {selected_filter['name']}!", call.message.chat.id, call.message.message_id)
+            return
+        bot.edit_message_text(f"🚀 Starting check with filter: {selected_filter['name']}\n\n📊 Sites: {len(sites_to_use)}\n💳 Cards: {len(cards)}", call.message.chat.id, call.message.message_id)
+        threading.Thread(target=start_mass_check, args=(user_id, cards, sites_to_use)).start()
 
 # ==================================================
-# 7. الأوامر العادية
+# 11. الأوامر العادية
 # ==================================================
 @bot.message_handler(commands=['cc'])
 def cc_command(message):
@@ -418,7 +618,7 @@ def chk_command(message):
     if not is_premium(user_id):
         bot.reply_to(message, "❌ Premium only.")
         return
-    bot.reply_to(message, "🚧 Mass check feature coming soon in telebot version.")
+    process_file_with_filters(message, user_id)
 
 @bot.message_handler(commands=['addproxy'])
 def addproxy_command(message):
@@ -617,7 +817,7 @@ def redeem_command(message):
 📅 Duration: {key_data['hours']} hours""")
 
 # ==================================================
-# 8. الأوامر الإدارية (للمطور فقط)
+# 12. الأوامر الإدارية (للمطور فقط)
 # ==================================================
 @bot.message_handler(commands=['addpremium'])
 def addpremium_command(message):
@@ -882,8 +1082,8 @@ def hits_command(message):
         bot.reply_to(message, "✅ Hits channel turned ON")
 
 # ==================================================
-# 9. تشغيل البوت
+# 13. تشغيل البوت
 # ==================================================
 if __name__ == "__main__":
-    print("✅ Bᴏᴛ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ (باستخدام telebot)!")
+    print("✅ Bᴏᴛ sᴛᴀʀᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ (باستخدام telebot مع Premium Emoji)!")
     bot.infinity_polling()
