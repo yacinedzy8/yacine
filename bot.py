@@ -8,7 +8,7 @@ import threading
 from datetime import datetime
 from faker import Faker
 
-TOKEN = "8250378472:AAFH_JgQVbOUnCUvYQaOnLMnrWi4G_MCDZY"
+TOKEN = "8054736760:AAE7TlEcsO4R25LI9e2nAzUr8o9VEzqt84E"
 bot = telebot.TeleBot(TOKEN)
 
 # اذكر المصدر @Abosgr2025 • https://t.me/+YNZRwbLWXRZjMmVk
