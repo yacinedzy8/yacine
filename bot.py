@@ -524,7 +524,7 @@ def handle_callback(call):
         about_text = (
             f'<tg-emoji emoji-id="{EMOJI_DIAMOND}">💎</tg-emoji> <b>المطور</b>\n'
             f'<blockquote expandable>\n'
-            f'<b>⎔ الاسم:</b> <a href="https://t.me/netdz02_dev">𝔸𝔹𝕆𝕊𝔾ℝ 𝕐𝔼𝕄𝔼ℕ</a>\n'
+            f'<b>⎔ الاسم:</b> <a href="https://t.me/netdz02_dev">yacine</a>\n'
             f'<b>⎔ اليوزر:</b> @yacine_X6\n'
             f'<b>⎔ القناة:</b> https://t.me/netdz02_dev\n'
             f'</blockquote>\n'
