@@ -1,813 +1,980 @@
-import telebot
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Free Fire Account Creator Bot - بوت إنشاء حسابات فري فاير
+Developer: Yacine Dz
+Version: 3.0
+"""
+
+import os
+import sys
 import json
-import requests
-import random
 import time
-import re
+import random
+import string
+import hashlib
 import threading
+import subprocess
+import base64
+import codecs
+import re
+import logging
 from datetime import datetime
-from faker import Faker
+from urllib.parse import unquote
+from io import BytesIO
 
-TOKEN = "8054736760:AAE7TlEcsO4R25LI9e2nAzUr8o9VEzqt84E"
-bot = telebot.TeleBot(TOKEN)
+import requests
+import urllib3
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# اذكر المصدر @Abosgr2025 • https://t.me/+YNZRwbLWXRZjMmVk
-# • BLACK LEGO 👋
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ========== الإيموجيات المتحركة Premium ==========
-EMOJI_CROWN = "5017184459347199280"         # 1
-EMOJI_DIAMOND = "5017181010488460393"       # 2
-EMOJI_STAR = "5017218054581388213"          # 3
-EMOJI_SPARKLES = "5019656878745978138"      # 4
-EMOJI_FIRE = "5019401809228202926"          # 5
-EMOJI_GEM = "5019759644428469277"           # 6
-EMOJI_ROCKET = "5017341470466639017"        # 7
-EMOJI_SHIELD = "5019584761950110887"        # 8
-EMOJI_KEY = "5019569849823659365"           # 9
-EMOJI_MAIL = "5019765756166931507"          # 10
-EMOJI_USER = "5017191095071671290"          # 11
-EMOJI_SUCCESS = "5019651033295487811"       # 12
-EMOJI_FAIL = "5017073954133640188"          # 13
-EMOJI_GLOBE = "5017154574964753399"         # 14
-EMOJI_LOCK = "5019373307825226748"          # 15
-EMOJI_TIME = "5017497085721708142"          # 16
-EMOJI_STATS = "5017098860648989669"         # 17
-EMOJI_HEART = "5017351305941746807"         # 18
-EMOJI_SETTINGS = "5017558392084890552"      # 19
-EMOJI_LOADING = "5019348457144452062"       # 20
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
-# ========== بيانات المستخدمين ==========
-user_data = {}
-global_stats = {"created": 0, "failed": 0}
+BOT_TOKEN = "8422372449:AAGZxNXJzli5pQvCJeh_rygqhAhn9dtwoPM"
+ADMIN_ID = 6936293942
+API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# ========== دوال فيسبوك ==========
+# إعدادات الإنشاء
+ReGiOn = "IND"
+NiCkNaMe = "yacinedev"
+PaSsWoRd = "yacinedev"
+ToTaL = 100
+ThReAdS = 50
+GhOsT = False
+AuToAcT = True
 
-def get_regex_group(pattern, text, default_value=""):
-    match = re.search(pattern, text)
-    if match:
-        return match.group(1)
-    return default_value
+# ============================================================
+# ENCRYPTION KEYS
+# ============================================================
 
-def get_fake_desktop_ua():
-    desktop_uas = [
-        {
-            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
-            "width": 1920,
-            "browser": "Microsoft Edge",
-            "version": "138",
-            "full_version_list": '"Not)A;Brand";v="8.0.0.0", "Chromium";v="138.0.7204.184", "Microsoft Edge";v="138.0.3351.121"'
-        },
-        {
-            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:119.0) "
-                  "Gecko/20100101 Firefox/119.0",
-            "width": 1920,
-            "browser": "Firefox",
-            "version": "119",
-            "full_version_list": '"Firefox";v="119.0"'
-        },
-        {
-            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/138.0.0.0 Safari/537.36",
-            "width": 1920,
-            "browser": "Chromium",
-            "version": "138",
-            "full_version_list": '"Not)A;Brand";v="8.0.0.0", "Chromium";v="138.0.7204.184"'
-        }
-    ]
-    return random.choice(desktop_uas)
+aEsKeY = bytes([89,103,38,116,99,37,68,69,117,104,54,37,90,99,94,56])
+aEsIv = bytes([54,111,121,90,68,114,50,50,69,51,121,99,104,106,77,37])
+cLiEnTsEcReT = "2ee44819e9b4598845141067b281621874d0d5d7af9d8f7e00c1e54715b7d1e3"
 
-def parse_set_cookie(headers):
-    raw_cookie = headers.get('Set-Cookie')
-    cookies = {}
-    if not raw_cookie:
-        return cookies, ""
-    parts = raw_cookie.split(',')
-    temp = []
-    for part in parts:
-        if '=' in part.split(';')[0]:
-            temp.append(part.strip())
-        else:
-            temp[-1] += ',' + part.strip()
-    for ck in temp:
-        kv = ck.split(';', 1)[0]
-        if '=' in kv:
-            k, v = kv.split('=', 1)
-            cookies[k.strip()] = v.strip()
-    cookie_str = "; ".join([f"{k}={v}" for k, v in cookies.items()])
-    return cookies, cookie_str
+rEgIoNlAnG = {
+    "ME": "ar", "IND": "hi", "ID": "id", "VN": "vi", "TH": "th",
+    "BD": "bn", "PK": "ur", "TW": "zh", "EUROPE": "fr", "RU": "ru",
+    "NA": "na", "SAC": "es", "BR": "pt", "SG": "ms", "US": "us"
+}
+rEgIoNlIsT = ["IND", "ID", "TH", "ME", "EUROPE", "VN", "BD", "PK", "TW", "RU", "NA", "SAC", "BR", "SG", "US"]
 
-def create_facebook_account(password=None):
-    fake = Faker('en_US')
-    ua_data = get_fake_desktop_ua()
-    first_name = fake.first_name_female()
-    last_name = fake.last_name()
-    email_akun = f'{first_name.lower()}{last_name.lower()}{random.randint(10,99)}@gmail.com'
-    if password is None:
-        password = 'levi@$618pi'
+nIcKXoR = b'1e5898ccb8dfdd921f9bdea848768b64a201'
 
-    cookies = {'wd': '738x688', 'locale': 'en_GB'}
-    headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'en,id;q=0.9,en-GB;q=0.8,en-US;q=0.7',
-        'dpr': '1',
-        'priority': 'u=0, i',
-        'sec-ch-prefers-color-scheme': 'dark',
-        'sec-ch-ua': f'"Not)A;Brand";v="8", "{ua_data["browser"]}";v="{ua_data["version"]}"',
-        'sec-ch-ua-full-version-list': ua_data["full_version_list"],
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-model': '""',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-ch-ua-platform-version': '"19.0.0"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'none',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': ua_data["ua"],
-        'viewport-width': str(ua_data["width"])
+INDIAN_CARRIERS = ["Jio", "Airtel", "Vodafone Idea", "BSNL", "MTNL", "Reliance Jio", "Bharti Airtel", "Vi"]
+INDIAN_CITIES = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad"]
+INDIAN_DEVICES = ["Asus ASUS_AI2401_A", "Samsung SM-G998B", "OnePlus 9 Pro", "Xiaomi Mi 11", "Google Pixel 6"]
+
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# ============================================================
+# GLOBAL VARIABLES
+# ============================================================
+
+tor_process = None
+session_pool = []
+SESSION_POOL_SIZE = 50
+IP_ROTATION_INTERVAL = 15
+ACCOUNT_COUNTER_FOR_IP_ROTATION = 0
+created_accounts = []
+is_running = False
+stop_flag = False
+
+# ============================================================
+# TOR FUNCTIONS
+# ============================================================
+
+def start_tor():
+    global tor_process
+    try:
+        subprocess.run(['pkill', '-9', 'tor'], capture_output=True, check=False)
+        time.sleep(0.5)
+        tor_process = subprocess.Popen(
+            ['tor'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        for i in range(10):
+            time.sleep(0.5)
+            result = subprocess.run(['pgrep', '-x', 'tor'], capture_output=True)
+            if result.returncode == 0:
+                return True
+        return False
+    except:
+        return False
+
+def renew_tor_ip():
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect(('127.0.0.1', 9051))
+        s.send(b'AUTHENTICATE ""\r\n')
+        s.send(b'SIGNAL NEWNYM\r\n')
+        s.send(b'QUIT\r\n')
+        s.close()
+        time.sleep(1)
+        return True
+    except:
+        return False
+
+def get_proxies():
+    return {
+        'http': 'socks5h://127.0.0.1:9050',
+        'https': 'socks5h://127.0.0.1:9050'
     }
 
-    try:
-        response = requests.get(
-            'https://www.facebook.com/?_rdc=1&_rdr',
-            cookies=cookies,
-            headers=headers,
-            timeout=30
-        )
-        cookies.update(dict(response.cookies.get_dict()))
-        headers.update({'referer': 'https://www.facebook.com/?_rdc=1&_rdr'})
-        
-        signup = requests.get(
-            'https://www.facebook.com/r.php?entry_point=login',
-            cookies=cookies,
-            headers=headers,
-            timeout=30
-        ).text.replace('\\', '')
-        
-        lsd_token = 'AVo86L310qI'
-        haste_session = get_regex_group('"haste_session":"(.*?)"', signup)
-        ccg = get_regex_group('"connectionClass":"(.*?)"', signup)
-        rev = get_regex_group(r'"consistency":{"rev":(\d+)', signup)
-        hsi = get_regex_group(r'"hsi":"(\d+)"', signup)
-        spint = get_regex_group(r'"__spin_t":(\d+)', signup)
-        vip = get_regex_group('"vip":"(.*?)"', signup)
-        
-        headers.update({
-            'x-asbd-id': '359341',
-            'x-fb-lsd': lsd_token
-        })
+# ============================================================
+# SESSION POOL
+# ============================================================
 
-        requests.get(
-            f'https://web.facebook.com/ajax/registration/validation/contactpoint_invalid/?contactpoint={email_akun}&fb_dtsg_ag&__user=0&__a=1&__req=4&__hs={haste_session}&dpr=1&__ccg={ccg}&__rev={rev}&__s=an0im4%3Afuzmdi%3Ahsr1au&__hsi={hsi}&__dyn=7xe6EsK36Q5E5ObwKBWg5S1Dxu13wqovzEdEc8uw9-3K0lW4o3Bw5VCwjE3awdu0FE2awpUO0n24o5-0me1Fw5uwbO0KU3mwaS0zE5W09yyE1582ZwrU1Xo1UU3jwea&__hsdp=hIfEA5EIox0IkE99fxTFBAwNy2wJBCx90NhE4a1nxe0ky0mK0MEMw7W1kwk87Feoqh0&__hblp=0PU2Owjo620kq0k63a0tG1ew9W2a0cZAw3q80zS0-o04XK0Go1pU0OG1uKLDBFoDh80rQw&__spin_r={rev}&__spin_b=trunk&__spin_t={spint}',
-            cookies=cookies,
-            headers=headers,
-            timeout=30
-        )
+def init_session_pool():
+    global session_pool
+    for _ in range(SESSION_POOL_SIZE):
+        session = requests.Session()
+        session.proxies.update(get_proxies())
+        session.verify = False
+        session.timeout = 10
+        session_pool.append(session)
 
-        headers.update({
-            'origin': 'https://www.facebook.com',
-            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Microsoft Edge";v="138"',
-            'sec-ch-ua-full-version-list': '"Not)A;Brand";v="8.0.0.0", "Chromium";v="138.0.7204.184", "Microsoft Edge";v="138.0.3351.121"',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0',
-            'accept': '*/*',
-            'accept-language': 'en,id;q=0.9,en-GB;q=0.8,en-US;q=0.7',
-            'content-type': 'application/x-www-form-urlencoded',
-            'referer': 'https://www.facebook.com/r.php?entry_point=login',
-            'cookie': 'datr=gKGYaMFDH3Zw5Gg2sggX9tbi; sb=gKGYaLge53jtbcJoymqEnZXl; ps_l=1; ps_n=1; locale=en_GB; wd=738x688; fr=1HLHrBbAGkoJv5O1l.AWeSwdELticByfVx58z4uY-kWUf_iGff96qe3DzSwDRT0GEF8Jo.BomL39..AAA.0.0.BomL4I.AWddslGP88dg7QDodcwbRuVHL_k'
-        })
+def get_pool_session():
+    return random.choice(session_pool)
 
-        data = {
-            'jazoest': get_regex_group(r'name="jazoest" value="(\d+)"', signup),
-            'lsd': lsd_token,
-            'firstname': first_name,
-            'lastname': last_name,
-            'birthday_day': '10',
-            'birthday_month': '8',
-            'birthday_year': '2005',
-            'birthday_age': '',
-            'did_use_age': 'false',
-            'sex': '1',
-            'preferred_pronoun': '',
-            'custom_gender': '',
-            'reg_email__': email_akun,
-            'reg_email_confirmation__': '',
-            'reg_passwd__': f'#PWD_BROWSER:0:{int(time.time())}:{password}',
-            'referrer': '',
-            'asked_to_login': '0',
-            'use_custom_gender': '',
-            'terms': 'on',
-            'ns': '0',
-            'ri': get_regex_group('name="ri" value="(.?)"', signup),
-            'action_dialog_shown': '',
-            'invid': '',
-            'a': '',
-            'oi': '',
-            'locale': 'en_GB',
-            'app_bundle': '',
-            'app_data': '',
-            'reg_data': '',
-            'app_id': '',
-            'fbpage_id': '',
-            'reg_oid': '',
-            'reg_instance': get_regex_group('name="reg_instance" value="(.?)"', signup),
-            'openid_token': '',
-            'uo_ip': vip,
-            'guid': '',
-            'key': '',
-            're': '',
-            'mid': '',
-            'fid': '',
-            'reg_dropoff_id': '',
-            'reg_dropoff_code': '',
-            'ignore': 'captcha|reg_email_confirmation__',
-            'captcha_persist_data': get_regex_group('name="captcha_persist_data" value="(.*?)"', signup),
-            'captcha_response': '',
-            '__user': '0',
-            '__a': '1',
-            '__req': '5',
-            '__hs': haste_session,
-            'dpr': '1',
-            '__ccg': ccg,
-            '__rev': rev,
-            '__s': 'an0im4:fuzmdi:hsr1su',
-            '__hsi': hsi,
-            '__dyn': '7xe6EsK36Q5E5ObwKBWg5S1Dxu13wqovzEdEc8uw9-3K0lW4o3Bw5VCwjE3awdu0FE2awpUO0n24o5-0me1Fw5uwbO0KU3mwaS0zE5W09yyE1582ZwrU1Xo1UU3jwea',
-            '__hsdp': 'hIfEA5EIox0IkE99fxTFBAwNy2wJBCx90NhE4a1nxe0ky0mK0MEMw7W1kwk87Feoqh0',
-            '__hblp': '0PU2Owjo620kq0k63a0tG1ew9W2a0cZAw3q80zS0-o04XK0Go1pU0OG1uKLDBFoDh80rQw',
-            '__spin_r': rev,
-            '__spin_b': 'trunk',
-            '__spin_t': spint
-        }
+# ============================================================
+# PROTOBUF FUNCTIONS
+# ============================================================
 
-        response = requests.post(
-            'https://web.facebook.com/ajax/register.php',
-            headers=headers,
-            data=data,
-            timeout=30
-        )
-
-        if '"registration_succeeded":true' in response.text:
-            cookie_dict, cookie_str = parse_set_cookie(response.headers)
-            return {
-                "success": True,
-                "first_name": first_name,
-                "last_name": last_name,
-                "email": email_akun,
-                "password": password,
-                "cookie": cookie_str,
-                "ip": vip
-            }
+def FF(value):
+    out = []
+    while True:
+        b = value & 0x7F
+        value >>= 7
+        if value:
+            out.append(b | 0x80)
         else:
-            error_msg = "Unknown error"
-            if "error" in response.text.lower():
+            out.append(b)
+            break
+    return bytes(out)
+
+def GayRena(field_num, value):
+    if isinstance(value, int):
+        tag = (field_num << 3) | 0
+        return FF(tag) + FF(value)
+    elif isinstance(value, str):
+        data = value.encode('utf-8')
+        tag = (field_num << 3) | 2
+        return FF(tag) + FF(len(data)) + data
+    elif isinstance(value, bytes):
+        tag = (field_num << 3) | 2
+        return FF(tag) + FF(len(value)) + value
+    elif isinstance(value, dict):
+        sub_payload = xPro(value)
+        tag = (field_num << 3) | 2
+        return FF(tag) + FF(len(sub_payload)) + sub_payload
+    else:
+        raise TypeError(f"Unsupported type for field {field_num}: {type(value)}")
+
+def xPro(fields_dict):
+    payload = b''
+    for key, value in fields_dict.items():
+        field_num = int(key)
+        if isinstance(value, list):
+            if value and all(isinstance(v, int) for v in value):
+                packed = b''.join(FF(v) for v in value)
+                tag = (field_num << 3) | 2
+                payload += FF(tag) + FF(len(packed)) + packed
+            else:
+                for elem in value:
+                    payload += GayRena(field_num, elem)
+        else:
+            payload += GayRena(field_num, value)
+    return payload
+
+def Noob(packet):
+    cipher = AES.new(aEsKeY, AES.MODE_CBC, aEsIv)
+    pad_len = 16 - (len(packet) % 16)
+    if pad_len == 0:
+        pad_len = 16
+    plaintext_padded = packet + bytes([pad_len]) * pad_len
+    return cipher.encrypt(plaintext_padded)
+
+def Pro(data):
+    from google.protobuf.internal.decoder import _DecodeVarint, _DecodeVarint32
+    pos = 0
+    length = len(data)
+    fields = {}
+    while pos < length:
+        key, pos = _DecodeVarint(data, pos)
+        field_num = key >> 3
+        wire_type = key & 7
+        if wire_type == 0:
+            value, pos = _DecodeVarint(data, pos)
+        elif wire_type == 2:
+            size, pos = _DecodeVarint32(data, pos)
+            raw = data[pos:pos+size]
+            pos += size
+            try:
+                value = Pro(raw)
+            except:
                 try:
-                    error_data = response.json()
-                    error_msg = str(error_data.get("error", "Unknown error"))[:200]
+                    value = raw.decode('utf-8')
                 except:
-                    error_msg = response.text[:200]
-            return {"success": False, "error": error_msg}
-    except Exception as e:
-        return {"success": False, "error": str(e)[:200]}
+                    value = raw.hex()
+        elif wire_type == 5:
+            value = int.from_bytes(data[pos:pos+4], "little")
+            pos += 4
+        elif wire_type == 1:
+            value = int.from_bytes(data[pos:pos+8], "little")
+            pos += 8
+        else:
+            raise Exception(f"Unsupported wire type: {wire_type}")
+        if field_num in fields:
+            if not isinstance(fields[field_num], list):
+                fields[field_num] = [fields[field_num]]
+            fields[field_num].append(value)
+        else:
+            fields[field_num] = value
+    return fields
 
+# ============================================================
+# API FUNCTIONS
+# ============================================================
 
-def show_loading_animation(chat_id, msg_id, stop_event):
-    frames = ["▰▱▱▱▱", "▰▰▱▱▱", "▰▰▰▱▱", "▰▰▰▰▱", "▰▰▰▰▰"]
-    i = 0
-    
-    while not stop_event.is_set():
-        frame = frames[i % len(frames)]
-        
-        text = (
-            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري المعالجة...</b>\n'
-            f'<blockquote>[{frame}]</blockquote>'
-        )
-        
+def RoFl(session, password):
+    url = "https://100067.connect.garena.com/api/v2/oauth/guest:register"
+    payload = {"app_id": 100067, "client_type": 2, "password": password, "source": 2}
+    json_body = json.dumps(payload, separators=(',', ':'))
+    data_to_sign = cLiEnTsEcReT + json_body
+    signature = hashlib.sha256(data_to_sign.encode()).hexdigest()
+    headers = {
+        "User-Agent": "GarenaMSDK/4.0.39(FRL-AN00a ;Android 10;nu;HK;)",
+        "Authorization": f"Signature {signature}",
+        "Content-Type": "application/json; charset=utf-8"
+    }
+    resp = session.post(url, data=json_body, headers=headers, timeout=10)
+    if resp.status_code == 200:
+        data = resp.json()
+        if data.get("code") == 0:
+            return str(data["data"]["uid"])
+        else:
+            raise Exception(f"Register failed: {data}")
+    else:
+        resp.raise_for_status()
+        raise Exception(f"Unexpected response: {resp.text}")
+
+def yEet(length=6, chars=string.ascii_uppercase + string.digits + "-_."):
+    return ''.join(random.choice(chars) for _ in range(length))
+
+def pWe():
+    try:
+        return requests.get('https://api.ipify.org', timeout=3).text
+    except:
+        return "0.0.0.0"
+
+def sUs():
+    return "GarenaMSDK/4.0.39(FRL-AN00a ;Android 10;nu;HK;)"
+
+def bRuH():
+    return "okhttp/3.12.1"
+
+def fInE(original):
+    keystream = [0x30,0x30,0x30,0x32,0x30,0x31,0x37,0x30,0x30,0x30,0x30,0x30,0x32,0x30,0x31,0x37,
+                 0x30,0x30,0x30,0x30,0x30,0x32,0x30,0x31,0x37,0x30,0x30,0x30,0x30,0x30,0x32,0x30]
+    encoded = ""
+    for i in range(len(original)):
+        orig_byte = ord(original[i])
+        key_byte = keystream[i % len(keystream)]
+        result_byte = orig_byte ^ key_byte
+        encoded += chr(result_byte)
+    return encoded
+
+def yAy(s):
+    return ''.join(c if 32 <= ord(c) <= 126 else f'\\u{ord(c):04x}' for c in s)
+
+def nOp(nick_b64):
+    if not nick_b64:
+        return ""
+    try:
+        decoded_bytes = base64.b64decode(nick_b64)
+        key_len = len(nIcKXoR)
+        xored = bytes([decoded_bytes[i] ^ nIcKXoR[i % key_len] for i in range(len(decoded_bytes))])
+        return xored.decode('utf-8', errors='ignore')
+    except:
+        return nick_b64
+
+def wOw(func, session, *args, max_retries=3, **kwargs):
+    for attempt in range(max_retries):
         try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=text,
-                parse_mode='HTML'
-            )
+            return func(session, *args, **kwargs)
         except:
-            pass
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(0.5)
+    return None
+
+def hAhA(session, password):
+    return RoFl(session, password)
+
+def lMaO(session, uid, password):
+    url = "https://100067.connect.garena.com/api/v2/oauth/guest/token:grant"
+    payload = {
+        "client_id":100067, "client_secret":cLiEnTsEcReT, "client_type":2,
+        "password":password, "response_type":"token", "uid":uid
+    }
+    headers = {"User-Agent": sUs(), "Content-Type": "application/json"}
+    resp = session.post(url, json=payload, headers=headers, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("code") != 0:
+        raise Exception(f"Token grant failed: {data}")
+    return data["data"]["access_token"], data["data"]["open_id"]
+
+def gG(session, name, access_token, open_id, region, is_ghost=False):
+    url = "https://loginbp.ggpolarbear.com/MajorRegister"
+    exp_digits = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'}
+    num = random.randint(1,99999)
+    exp = ''.join(exp_digits[d] for d in f"{num:05d}")
+    name = name[:7] + exp
+    lang_code = "pt" if is_ghost else rEgIoNlAnG.get(region.upper(), "en")
+    encoded_result = fInE(open_id)
+    field_unicode = yAy(encoded_result)
+    field_bytes = codecs.decode(field_unicode, 'unicode_escape').encode('latin1')
+    fields_dict = {
+        "1": name, "2": access_token, "3": open_id,
+        "5": 102000007, "6": 4, "7": 1, "13": 1,
+        "14": field_bytes, "15": lang_code, "16": 2
+    }
+    plaintext = xPro(fields_dict)
+    encrypted_payload = Noob(plaintext)
+    headers = {
+        "Accept-Encoding": "gzip", "Authorization": "Bearer", "Connection": "Keep-Alive",
+        "Content-Type": "application/x-www-form-urlencoded", "Expect": "100-continue",
+        "Host": "loginbp.ggpolarbear.com", "ReleaseVersion": "OB54",
+        "User-Agent": bRuH(), "X-GA": "v1 1", "X-Unity-Version": "2018.4."
+    }
+    resp = session.post(url, headers=headers, data=encrypted_payload, timeout=15)
+    resp.raise_for_status()
+    return Pro(resp.content)
+
+def nIcE(session, access_token, open_id, region, lang_code):
+    url = "https://loginbp.ggpolarbear.com/MajorLogin"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ip = pWe()
+    if region.upper() == "IND":
+        device_model = random.choice(INDIAN_DEVICES)
+        carrier = random.choice(INDIAN_CARRIERS)
+        city = random.choice(INDIAN_CITIES)
+    else:
+        device_model = "Asus ASUS_AI2401_A"
+        carrier = "GrameenPhone"
+        city = "Dhaka"
+    gpu = "Adreno (TM) 640"
+    
+    def qT(n):
+        out = []
+        while True:
+            b = n & 0x7F
+            n >>= 7
+            if n: b |= 0x80
+            out.append(b)
+            if not n: break
+        return bytes(out)
+    
+    def zZ(f, v):
+        return qT((f << 3) | 0) + qT(v)
+    
+    def xX(f, v):
+        data = v.encode() if isinstance(v, str) else v
+        return qT((f << 3) | 2) + qT(len(data)) + data
+    
+    fields = {
+        3: now_str,
+        4: "free fire",
+        5: 1,
+        7: "1.126.5",
+        8: "Android OS 5.1.1 / API-22 (LMY48Z/rel.se.infra.20220128.171448)",
+        9: "Handheld",
+        10: carrier,
+        11: "WIFI",
+        17: gpu,
+        18: "OpenGL ES 3.0",
+        19: "Google|4645e530-e790-4be2-ae7c-6f64d1259603",
+        20: ip,
+        21: lang_code,
+        22: open_id,
+        23: 4,
+        24: "Handheld",
+        25: device_model,
+        26: region.upper(),
+        29: access_token,
+        33: carrier,
+        34: "WIFI",
+        37: "7428b253defc164018c604a1ebbfebdf",
+        73: "/data/app/com.dts.freefireth-1/lib/arm",
+        75: "H4c322aeb56444feaa151d1ea91a8f7f2|/data/app/com.dts.freefireth-1/base.apk",
+        76: 2,
+        78: 2,
+        79: 2,
+        83: "OpenGLES2",
+        85: city,
+        87: "android",
+        88: "KqsHTywQqGHMgPbDY9P2mhkxXj/beObk/TFNpmgaucQwxyLu9hA478WEQCV0Mgaz9UivYUPpKNwPzgZhvDhSsUDMAFY=",
+        90: '{"cur_rate":null,"support_etc2":false}',
+        97: 1,
+        98: 1,
+        99: "4",
+        100: "4"
+    }
+    
+    packet = b''
+    for f, v in fields.items():
+        if isinstance(v, int): 
+            packet += zZ(f, v)
+        elif isinstance(v, str): 
+            packet += xX(f, v)
+        elif isinstance(v, bytes): 
+            packet += xX(f, v)
+    
+    encrypted = Noob(packet)
+    headers = {
+        "Accept-Encoding": "gzip", 
+        "Connection": "Keep-Alive",
+        "Content-Type": "application/x-www-form-urlencoded", 
+        "Expect": "100-continue",
+        "ReleaseVersion": "OB54", 
+        "User-Agent": bRuH(),
+        "X-GA": "v1 1", 
+        "X-Unity-Version": "2018.4."
+    }
+    resp = session.post(url, headers=headers, data=encrypted, timeout=15)
+    resp.raise_for_status()
+    decoded = Pro(resp.content)
+    jwt_token = decoded.get(8)
+    if isinstance(jwt_token, list):
+        jwt_token = jwt_token[0] if jwt_token else None
+    return decoded, jwt_token
+
+def dUdE(session, region_code, jwt_token):
+    url = "https://loginbp.ggpolarbear.com/ChooseRegion"
+    if region_code.upper() == "CIS":
+        region_code = "ru"
+    else:
+        region_code = region_code.upper()
+    fields_dict = {"1": region_code}
+    plaintext = xPro(fields_dict)
+    encrypted_payload = Noob(plaintext)
+    headers = {
+        "Accept-Encoding": "gzip", "Authorization": f"Bearer {jwt_token}",
+        "Connection": "Keep-Alive", "Content-Type": "application/x-www-form-urlencoded",
+        "Expect": "100-continue", "ReleaseVersion": "OB54",
+        "User-Agent": bRuH(), "X-GA": "v1 1", "X-Unity-Version": "2018.4."
+    }
+    resp = session.post(url, headers=headers, data=encrypted_payload, timeout=10)
+    return resp.status_code == 200
+
+def bYe(session, jwt_token, client_url):
+    url = f"https://{client_url}/GetLoginData"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ip = pWe()
+    device_model = random.choice(INDIAN_DEVICES)
+    carrier = random.choice(INDIAN_CARRIERS)
+    city = random.choice(INDIAN_CITIES)
+    gpu = "Adreno (TM) 640"
+    open_id = "24adf2d6806cf61bd95d4cd3b57a0bd9"
+    
+    def qT(n):
+        out = []
+        while True:
+            b = n & 0x7F
+            n >>= 7
+            if n: b |= 0x80
+            out.append(b)
+            if not n: break
+        return bytes(out)
+    
+    def zZ(f, v):
+        return qT((f << 3) | 0) + qT(v)
+    
+    def xX(f, v):
+        data = v.encode() if isinstance(v, str) else v
+        return qT((f << 3) | 2) + qT(len(data)) + data
+    
+    fields = {
+        3: now_str,
+        4: "free fire",
+        5: 1,
+        7: "1.126.5",
+        8: "Android OS 5.1.1 / API-22 (LMY48Z/rel.se.infra.20220128.171448)",
+        9: "Handheld",
+        10: carrier,
+        11: "WIFI",
+        17: gpu,
+        18: "OpenGL ES 3.0",
+        19: "Google|4645e530-e790-4be2-ae7c-6f64d1259603",
+        20: ip,
+        21: "en",
+        22: open_id,
+        23: 4,
+        24: "Handheld",
+        25: device_model,
+        26: "IND",
+        29: jwt_token,
+        33: carrier,
+        34: "WIFI",
+        37: "7428b253defc164018c604a1ebbfebdf",
+        73: "/data/app/com.dts.freefireth-1/lib/arm",
+        75: "H4c322aeb56444feaa151d1ea91a8f7f2|/data/app/com.dts.freefireth-1/base.apk",
+        83: "OpenGLES2",
+        85: city,
+        87: "android",
+        88: "KqsHT8nWdkA7u/m7k8vg2H5FgrCGa4lfww3nHBGRHRPwDFV4LyCj8sT23O/P6K06qC3MOLZRThwWwul+g2goHwtQJy8=",
+        90: '{"cur_rate":null,"support_etc2":false}'
+    }
+    
+    packet = b''
+    for f, v in fields.items():
+        if isinstance(v, int): 
+            packet += zZ(f, v)
+        elif isinstance(v, str): 
+            packet += xX(f, v)
+        elif isinstance(v, bytes): 
+            packet += xX(f, v)
+    
+    encrypted_payload = Noob(packet)
+    
+    headers = {
+        'User-Agent': "Dalvik/2.1.0 (Linux; U; Android 12)",
+        'Connection': "Keep-Alive",
+        'Accept-Encoding': "gzip",
+        'Content-Type': "application/x-www-form-urlencoded",
+        'Authorization': f"Bearer {jwt_token}",
+        'X-Unity-Version': "2018.4.11f1",
+        'X-GA': "v1 1",
+        'ReleaseVersion': "OB54"
+    }
+    
+    try:
+        resp = session.post(url, headers=headers, data=encrypted_payload, timeout=10)
+        return resp.status_code == 200
+    except:
+        return False
+
+def hElLo(jwt_token):
+    try:
+        parts = jwt_token.split('.')
+        if len(parts) != 3:
+            return None, None
+        payload = parts[1]
+        payload += '=' * (4 - len(payload) % 4)
+        data = json.loads(base64.b64decode(payload))
+        lock_region = data.get("lock_region") or data.get("noti_region")
+        raw_nick = data.get("nickname")
+        if raw_nick:
+            nickname = nOp(raw_nick)
+        else:
+            nickname = ""
+        return lock_region, nickname
+    except:
+        return None, None
+
+# ============================================================
+# ACCOUNT CREATOR CLASS
+# ============================================================
+
+class FreeFireAccountCreator:
+    def __init__(self, region, nickname_prefix, password_prefix, auto_activate, total_target, ghost=False):
+        self.region = region
+        self.nickname_prefix = nickname_prefix[:7]
+        self.password_prefix = password_prefix.upper()
+        self.auto_activate = auto_activate
+        self.total_target = total_target
+        self.ghost = ghost
+        self.created_count = 0
+        self.accounts = []
+        self.stop = False
+        self.lock = threading.Lock()
+        self.saved_uids = set()
+
+    def gEnPaSs(self):
+        r1 = yEet(6)
+        r2 = yEet(6)
+        plain = f"{self.password_prefix}_{r1}-VAIBHAV{r2}"
+        return plain, plain
+
+    def create_account(self):
+        if self.stop:
+            return None
         
-        i += 1
-        time.sleep(0.8)
-
-
-# ========== أوامر البوت ==========
-
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    welcome_text = (
-        f'<tg-emoji emoji-id="{EMOJI_CROWN}">👑</tg-emoji> <b>FACEBOOK GEN</b>\n'
-        f'<blockquote>أداة إنشاء حسابات فيسبوك تلقائياً</blockquote>\n\n'
-        f'<blockquote expandable>\n'
-        f'<b>⎔ المطور:</b> <a href="">𝗬𝗮𝗰𝗶𝗻𝗲𝗗𝗲𝘃</a>\n'
-        f'</blockquote>'
-    )
-
-    keyboard = [
-        # الصف الأول: زر أساسي ومهم (زر بحجم كامل)
-        [
-            {
-                "text": "إنشاء حساب",
-                "callback_data": "create_single",
-                "style": "success",
-                "icon_custom_emoji_id": EMOJI_ROCKET
-            }
-        ],
-        # الصف الثاني: خيارات إضافية (زرين بجانب بعض لتوفير المساحة وتجميل الشكل)
-        [
-            {
-                "text": "إنشاء بالجملة",
-                "callback_data": "menu_bulk",
-                "style": "primary",
-                "icon_custom_emoji_id": EMOJI_FIRE
-            },
-            {
-                "text": "تغيير الباسورد",
-                "callback_data": "change_password",
-                "style": "primary",
-                "icon_custom_emoji_id": EMOJI_KEY
-            }
-        ],
-        # الصف الثالث: زر المعلومات (زر بحجم كامل في الأسفل)
-        [
-            {
-                "text": "عن المطور",
-                "callback_data": "about_dev",
-                "style": "primary",
-                "icon_custom_emoji_id": EMOJI_DIAMOND
-            }
-        ]
-    ]
-
-    bot.send_message(
-        message.chat.id,
-        welcome_text,
-        parse_mode='HTML',
-        reply_markup=json.dumps({"inline_keyboard": keyboard}),
-        disable_web_page_preview=True
-    )
-
-
-
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call):
-    user_id = call.from_user.id
-    chat_id = call.message.chat.id
-    msg_id = call.message.message_id
-    
-    if user_id not in user_data:
-        user_data[user_id] = {"password": "levi@$618pi", "state": "idle"}
-    
-    # حذف الرسالة
-    if call.data == "delete_msg":
+        session = get_pool_session()
         try:
-            bot.delete_message(chat_id, msg_id)
+            store_pass, api_pass = self.gEnPaSs()
+            uid = wOw(hAhA, session, api_pass)
+            
+            if uid in self.saved_uids:
+                return None
+            
+            access_token, open_id = wOw(lMaO, session, uid, api_pass)
+            reg_resp = wOw(gG, session, self.nickname_prefix, access_token, open_id, self.region, self.ghost)
+            account_id = reg_resp.get(3)
+            if not account_id:
+                raise Exception("No account_id")
+            account_id = str(account_id)
+            lang_code = rEgIoNlAnG.get(self.region, "en") if not self.ghost else "pt"
+            login_resp, jwt_token = wOw(nIcE, session, access_token, open_id, self.region, lang_code)
+            if not jwt_token:
+                raise Exception("No JWT")
+            lock_region, nickname = hElLo(jwt_token)
+            if not nickname:
+                nickname = self.nickname_prefix
+            
+            need_lock = False
+            final_jwt = jwt_token
+            client_url = None
+            
+            if not self.ghost:
+                if lock_region and lock_region not in (None, 'None', '..', ''):
+                    if lock_region != self.region.upper():
+                        need_lock = True
+                else:
+                    need_lock = True
+                if need_lock:
+                    dUdE(session, self.region, jwt_token)
+                    login_resp2, jwt_token2 = wOw(nIcE, session, access_token, open_id, self.region, lang_code)
+                    if jwt_token2:
+                        final_jwt = jwt_token2
+                        lock_region2, nickname2 = hElLo(jwt_token2)
+                        if nickname2:
+                            nickname = nickname2
+                        lock_region = lock_region2
+                last_resp = login_resp2 if need_lock and 'login_resp2' in locals() else login_resp
+                client_url_raw = last_resp.get(10)
+                if isinstance(client_url_raw, str):
+                    client_url = client_url_raw
+                elif isinstance(client_url_raw, list):
+                    client_url = client_url_raw[0] if client_url_raw else None
+                if client_url and client_url.startswith("https://"):
+                    client_url = client_url[8:]
+                if not client_url:
+                    if self.region.upper() == "IND":
+                        client_url = "client.ind.freefiremobile.com"
+                    elif self.region.upper() in ["BR","US","NA","SAC"]:
+                        client_url = "client.us.freefiremobile.com"
+                    else:
+                        client_url = "clientbp.ggpolarbear.com"
+            else:
+                client_url = "clientbp.ggpolarbear.com"
+                lock_region = "GHOST"
+            
+            activated = False
+            if self.auto_activate and final_jwt and client_url and not self.ghost:
+                activated = wOw(bYe, session, final_jwt, client_url)
+            
+            final_region = lock_region if lock_region and not self.ghost else "GHOST"
+            stored_password = store_pass
+            
+            acc = {
+                "nickname": nickname,
+                "game_uid": account_id,
+                "region": final_region,
+                "uid": str(uid),
+                "password": stored_password,
+                "activated": activated
+            }
+            
+            self.saved_uids.add(uid)
+            return acc
         except:
-            pass
+            return None
+
+    def run(self, callback=None):
+        self.stop = False
+        self.created_count = 0
+        self.accounts = []
+        
+        start_tor()
+        time.sleep(1)
+        init_session_pool()
+        
+        while self.created_count < self.total_target and not self.stop:
+            acc = self.create_account()
+            if acc:
+                self.created_count += 1
+                self.accounts.append(acc)
+                if callback:
+                    callback(acc)
+            else:
+                time.sleep(0.1)
+        
+        return self.accounts
+
+# ============================================================
+# TELEGRAM BOT HANDLERS
+# ============================================================
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ هذا البوت للأدمن فقط!")
         return
     
-    # إنشاء حساب واحد
-    if call.data == "create_single":
-        loading_msg = bot.send_message(
-            chat_id,
-            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري الإنشاء...</b>',
-            parse_mode='HTML'
-        )
-        
-        stop_event = threading.Event()
-        anim_thread = threading.Thread(target=show_loading_animation, args=(chat_id, loading_msg.message_id, stop_event))
-        anim_thread.start()
-        
-        password = user_data[user_id].get("password", "levi@$618pi")
-        result = create_facebook_account(password)
-        
-        stop_event.set()
-        anim_thread.join(timeout=1)
-        
-        show_account_result(chat_id, loading_msg.message_id, result)
-    
-    # قائمة البلك
-    elif call.data == "menu_bulk":
-        bulk_text = (
-            f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء بالجملة</b>\n'
-            f'<blockquote>حدد العدد المطلوب</blockquote>'
-        )
-        
-        keyboard = [
-            [
-                {
-                    "text": "5",
-                    "callback_data": "bulk_5",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_STAR
-                },
-                {
-                    "text": "10",
-                    "callback_data": "bulk_10",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_STAR
-                },
-                {
-                    "text": "20",
-                    "callback_data": "bulk_20",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_GEM
-                }
-            ],
-            [
-                {
-                    "text": "50",
-                    "callback_data": "bulk_50",
-                    "style": "primary",
-                    "icon_custom_emoji_id": EMOJI_FIRE
-                },
-                {
-                    "text": "100",
-                    "callback_data": "bulk_100",
-                    "style": "primary",
-                    "icon_custom_emoji_id": EMOJI_ROCKET
-                }
-            ],
-            [
-                {
-                    "text": "عدد مخصص",
-                    "callback_data": "bulk_custom",
-                    "style": "primary",
-                    "icon_custom_emoji_id": EMOJI_SETTINGS
-                }
-            ],
-            [
-                {
-                    "text": "رجوع",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_SHIELD
-                }
-            ]
-        ]
-        
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=bulk_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard})
-        )
-    
-    # تنفيذ البلك
-    elif call.data.startswith("bulk_"):
-        if call.data == "bulk_custom":
-            user_data[user_id]["state"] = "waiting_custom_count"
-            prompt_text = (
-                f'<tg-emoji emoji-id="{EMOJI_SETTINGS}">⚙️</tg-emoji> <b>أدخل العدد (1-500)</b>\n'
-                f'<blockquote>أرسل الرقم الآن</blockquote>'
-            )
-            
-            keyboard = [[
-                {
-                    "text": "إلغاء",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_FAIL
-                }
-            ]]
-            
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=prompt_text,
-                parse_mode='HTML',
-                reply_markup=json.dumps({"inline_keyboard": keyboard})
-            )
-        else:
-            count = int(call.data.split("_")[1])
-            process_bulk_accounts(chat_id, user_id, count)
-    
-    # تغيير الباسورد
-    elif call.data == "change_password":
-        user_data[user_id]["state"] = "waiting_password"
-        
-        current_pass = user_data[user_id].get("password", "levi@$618pi")
-        prompt_text = (
-            f'<tg-emoji emoji-id="{EMOJI_KEY}">🔑</tg-emoji> <b>تغيير الباسورد</b>\n'
-            f'<blockquote expandable>الحالي: <code>{current_pass}</code></blockquote>\n'
-            f'<blockquote>أرسل الباسورد الجديد:</blockquote>'
-        )
-        
-        keyboard = [[
-            {
-                "text": "إلغاء",
-                "callback_data": "back_to_start",
-                "style": "danger",
-                "icon_custom_emoji_id": EMOJI_FAIL
-            }
-        ]]
-        
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=prompt_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard})
-        )
-    
-    # عن المطور
-    elif call.data == "about_dev":
-        about_text = (
-            f'<tg-emoji emoji-id="{EMOJI_DIAMOND}">💎</tg-emoji> <b>المطور</b>\n'
-            f'<blockquote expandable>\n'
-            f'<b>⎔ الاسم:</b> <a href="https://t.me/netdz02_dev">yacine</a>\n'
-            f'<b>⎔ اليوزر:</b> @yacine_X6\n'
-            f'<b>⎔ القناة:</b> https://t.me/netdz02_dev\n'
-            f'</blockquote>\n'
-            f'<blockquote expandable>\n'
-            f'<b>⚠️ تنبيه هام:</b>\n'
-            f'هذه الأداة للأغراض التعليمية فقط.\n'
-            f'المطور غير مسؤول عن أي استخدام\n'
-            f'خاطئ أو مخالف للقوانين.\n'
-            f'تقع المسؤولية الكاملة على المستخدم.\n'
-            f'</blockquote>'
-        )
-        
-        keyboard = [[
-            {
-                "text": "رجوع",
-                "callback_data": "back_to_start",
-                "style": "danger",
-                "icon_custom_emoji_id": EMOJI_SHIELD
-            }
-        ]]
-        
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=about_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard}),
-            disable_web_page_preview=True
-        )
-    
-    # رجوع للرئيسية
-    elif call.data == "back_to_start":
-        bot.delete_message(chat_id, msg_id)
-        send_welcome(call.message)
-    
-    # إنشاء آخر
-    elif call.data == "create_another":
-        loading_msg = bot.send_message(
-            chat_id,
-            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري الإنشاء...</b>',
-            parse_mode='HTML'
-        )
-        
-        stop_event = threading.Event()
-        anim_thread = threading.Thread(target=show_loading_animation, args=(chat_id, loading_msg.message_id, stop_event))
-        anim_thread.start()
-        
-        password = user_data[user_id].get("password", "levi@$618pi")
-        result = create_facebook_account(password)
-        
-        stop_event.set()
-        anim_thread.join(timeout=1)
-        
-        show_account_result(chat_id, loading_msg.message_id, result)
+    text = """
+🔥 **Free Fire Account Creator Bot** 🔥
 
+📌 **الأوامر المتاحة:**
 
-def process_bulk_accounts(chat_id, user_id, count):
-    """إنشاء مجموعة حسابات وإرسال كل حساب برسالة منفصلة فور إنشائه"""
-    loading_msg = bot.send_message(
-        chat_id,
-        f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>تجهيز {count} حساب...</b>',
-        parse_mode='HTML'
-    )
+/create [عدد] - بدء إنشاء حسابات
+/stop - إيقاف الإنشاء
+/status - عرض حالة الإنشاء
+/export - تصدير الحسابات
+/regions - عرض المناطق المتاحة
+/setregion [المنطقة] - تغيير المنطقة
+/setnick [الاسم] - تغيير بادئة الاسم
+/setpass [الباسورد] - تغيير بادئة الباسورد
+
+📌 **المناطق المتاحة:**
+IND, ID, TH, ME, EUROPE, VN, BD, PK, TW, RU, NA, SAC, BR, SG, US
+
+👨‍💻 **Developer:** Yacine Dz
+"""
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def cmd_create(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global is_running, stop_flag, created_accounts
     
-    password = user_data[user_id].get("password", "levi@$618pi")
-    success_list = []
-    fail_count = 0
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
     
-    for i in range(1, count + 1):
-        progress = int(i / count * 100)
-        bar = "▰" * (progress // 10) + "▱" * (10 - progress // 10)
-        
+    if is_running:
+        await update.message.reply_text("⏳ عملية إنشاء جارية بالفعل!")
+        return
+    
+    count = int(context.args[0]) if context.args and context.args[0].isdigit() else 10
+    if count > 500:
+        await update.message.reply_text("⚠️ الحد الأقصى 500 حساب في المرة الواحدة!")
+        return
+    
+    is_running = True
+    stop_flag = False
+    created_accounts = []
+    
+    status_msg = await update.message.reply_text(f"🚀 بدء إنشاء {count} حساب...\n⏳ جاري التنفيذ...")
+    
+    def callback(acc):
+        created_accounts.append(acc)
+    
+    creator = FreeFireAccountCreator(ReGiOn, NiCkNaMe, PaSsWoRd, AuToAcT, count, GhOsT)
+    
+    def run_creator():
+        creator.run(callback)
+        global is_running
+        is_running = False
+    
+    import threading
+    thread = threading.Thread(target=run_creator)
+    thread.start()
+    
+    # تحديث الحالة كل 5 ثواني
+    while is_running:
+        await asyncio.sleep(5)
         try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=loading_msg.message_id,
-                text=(
-                    f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء {count} حساب</b>\n'
-                    f'<blockquote expandable>\n'
-                    f'<b>التقدم:</b> {i}/{count}\n'
-                    f'<b>الشريط:</b> [{bar}] {progress}%\n'
-                    f'<b>ناجح:</b> {len(success_list)} | <b>فاشل:</b> {fail_count}\n'
-                    f'</blockquote>'
-                ),
-                parse_mode='HTML'
+            await status_msg.edit_text(
+                f"🚀 جاري إنشاء الحسابات...\n"
+                f"✅ تم إنشاء: {len(created_accounts)}/{count}\n"
+                f"⏳ الوقت: {datetime.now().strftime('%H:%M:%S')}"
             )
         except:
             pass
+    
+    # إرسال النتائج
+    if created_accounts:
+        # حفظ في ملف
+        folder = "GEN/GHOST" if GhOsT else f"GEN/{ReGiOn}"
+        os.makedirs(folder, exist_ok=True)
+        txt_path = os.path.join(folder, f"Accounts-{ReGiOn}.txt")
         
-        result = create_facebook_account(password)
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            for acc in created_accounts:
+                f.write(f"BOT = {acc['game_uid']} | UiD = {acc['uid']} | PassWord = {acc['password']} | NamE = {acc['nickname']} | ReGioN = {acc['region']}\n")
         
-        if result["success"]:
-            success_list.append(result)
-            global_stats["created"] += 1
-            
-            # إرسال الحساب في رسالة منفصلة بصندوق مطوي فور إنشائه
-            acc_text = (
-                f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم إنشاء حساب بنجاح ({len(success_list)})</b>\n'
-                f'<blockquote expandable>\n'
-                f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
-                f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
-                f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
-                f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
-                f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
-                f'</blockquote>'
+        # إرسال الملف
+        with open(txt_path, 'rb') as f:
+            await update.message.reply_document(
+                document=InputFile(f, filename=f"accounts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"),
+                caption=f"✅ تم إنشاء {len(created_accounts)} حساب بنجاح!"
             )
-            bot.send_message(chat_id, acc_text, parse_mode='HTML')
-            open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n')
-            
-        else:
-            fail_count += 1
-            global_stats["failed"] += 1
         
-        if i < count:
-            time.sleep(random.randint(5, 10))
-    
-    # حذف رسالة التحميل المستمرة
-    try:
-        bot.delete_message(chat_id, loading_msg.message_id)
-    except:
-        pass
-    
-    now = datetime.now()
-    
-    # رسالة الملخص النهائي مع الأزرار
-    final_text = (
-        f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>اكتمل الإنشاء بالجملة!</b>\n'
-        f'<blockquote expandable>\n'
-        f'✅ <b>ناجح:</b> {len(success_list)}\n'
-        f'❌ <b>فاشل:</b> {fail_count}\n'
-        f'⏱️ <b>{now.strftime("%H:%M:%S")}</b>\n'
-        f'</blockquote>'
-    )
-    
-    keyboard = [
-        [
-            {
-                "text": "إنشاء آخر",
-                "callback_data": "create_another",
-                "style": "success",
-                "icon_custom_emoji_id": EMOJI_ROCKET
-            }
-        ],
-        [
-            {
-                "text": "رجوع",
-                "callback_data": "back_to_start",
-                "style": "danger",
-                "icon_custom_emoji_id": EMOJI_SHIELD
-            }
-        ]
-    ]
-    
-    bot.send_message(
-        chat_id,
-        final_text,
-        parse_mode='HTML',
-        reply_markup=json.dumps({"inline_keyboard": keyboard})
-    )
-
-
-def show_account_result(chat_id, msg_id, result):
-    """عرض نتيجة إنشاء حساب واحد"""
-    if result["success"]:
-        global_stats["created"] += 1
-        
-        success_text = (
-            f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم الإنشاء بنجاح</b>\n'
-            f'<blockquote expandable>\n'
-            f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
-            f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
-            f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
-            f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
-            f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
-            f'</blockquote>'
-        )
-        
-        open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n')
-        
-        keyboard = [
-            [
-                {
-                    "text": "إنشاء آخر",
-                    "callback_data": "create_another",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_ROCKET
-                },
-                {
-                    "text": "رجوع",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_SHIELD
-                }
-            ]
-        ]
-    
+        # إرسال أول 5 حسابات كعينة
+        sample = ""
+        for i, acc in enumerate(created_accounts[:5]):
+            sample += f"{i+1}. UID: {acc['uid']} | Pass: {acc['password']}\n"
+        await update.message.reply_text(f"📋 عينة من الحسابات:\n{sample}")
     else:
-        global_stats["failed"] += 1
-        
-        success_text = (
-            f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>فشل الإنشاء</b>\n'
-            f'<blockquote expandable>{result["error"][:150]}</blockquote>'
-        )
-        
-        keyboard = [
-            [
-                {
-                    "text": "محاولة أخرى",
-                    "callback_data": "create_another",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_ROCKET
-                },
-                {
-                    "text": "رجوع",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_SHIELD
-                }
-            ]
-        ]
+        await update.message.reply_text("❌ لم يتم إنشاء أي حساب!")
+
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global stop_flag, is_running
     
-    bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=msg_id,
-        text=success_text,
-        parse_mode='HTML',
-        reply_markup=json.dumps({"inline_keyboard": keyboard})
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
+    
+    if is_running:
+        stop_flag = True
+        is_running = False
+        await update.message.reply_text("⏹ تم إيقاف عملية الإنشاء!")
+    else:
+        await update.message.reply_text("❌ لا توجد عملية إنشاء جارية!")
+
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
+    
+    status = "🟢 جاري" if is_running else "🔴 متوقف"
+    await update.message.reply_text(
+        f"📊 **حالة البوت**\n\n"
+        f"الحالة: {status}\n"
+        f"تم إنشاء: {len(created_accounts)}\n"
+        f"المنطقة: {ReGiOn}\n"
+        f"بادئة الاسم: {NiCkNaMe}\n"
+        f"إجمالي الـ Tor: {len(session_pool)}\n"
+        f"الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        parse_mode="Markdown"
     )
 
-
-@bot.message_handler(func=lambda message: True)
-def handle_messages(message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
+async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
     
-    if user_id not in user_data:
-        user_data[user_id] = {"password": "levi@$618pi", "state": "idle"}
+    folder = "GEN/GHOST" if GhOsT else f"GEN/{ReGiOn}"
+    txt_path = os.path.join(folder, f"Accounts-{ReGiOn}.txt")
     
-    state = user_data[user_id].get("state", "idle")
-    
-    if state == "waiting_password":
-        new_pass = message.text.strip()
-        user_data[user_id]["password"] = new_pass
-        user_data[user_id]["state"] = "idle"
-        
-        success_text = (
-            f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم تحديث الباسورد</b>\n'
-            f'<blockquote expandable>الجديد: <code>{new_pass}</code></blockquote>'
-        )
-        
-        keyboard = [[
-            {
-                "text": "رجوع للرئيسية",
-                "callback_data": "back_to_start",
-                "style": "danger",
-                "icon_custom_emoji_id": EMOJI_SHIELD
-            }
-        ]]
-        
-        bot.send_message(
-            chat_id,
-            success_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard})
-        )
-    
-    elif state == "waiting_custom_count":
-        try:
-            count = int(message.text.strip())
-            if count < 1:
-                raise ValueError
-            if count > 500:
-                count = 500
-            
-            user_data[user_id]["state"] = "idle"
-            process_bulk_accounts(chat_id, user_id, count)
-        except:
-            error_text = (
-                f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>خطأ</b>\n'
-                f'<blockquote>أدخل رقم صحيح (1-500)</blockquote>'
+    if os.path.exists(txt_path):
+        with open(txt_path, 'rb') as f:
+            await update.message.reply_document(
+                document=InputFile(f, filename=f"accounts_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"),
+                caption="📁 جميع الحسابات المحفوظة"
             )
-            bot.send_message(chat_id, error_text, parse_mode='HTML')
+    else:
+        await update.message.reply_text("❌ لا توجد حسابات محفوظة!")
 
+async def cmd_regions(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
+    
+    text = "🌍 **المناطق المتاحة:**\n"
+    for region in rEgIoNlIsT:
+        text += f"▪️ {region}\n"
+    text += f"\nالمنطقة الحالية: **{ReGiOn}**"
+    await update.message.reply_text(text, parse_mode="Markdown")
 
-print(" رروح شوفو يعمل...")
-bot.infinity_polling()
+async def cmd_setregion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global ReGiOn
+    
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
+    
+    if not context.args:
+        await update.message.reply_text("⚠️ استخدم: /setregion IND")
+        return
+    
+    region = context.args[0].upper()
+    if region in rEgIoNlIsT:
+        ReGiOn = region
+        await update.message.reply_text(f"✅ تم تغيير المنطقة إلى: {ReGiOn}")
+    else:
+        await update.message.reply_text(f"❌ منطقة غير صالحة!\nالمناطق المتاحة: {', '.join(rEgIoNlIsT)}")
+
+async def cmd_setnick(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global NiCkNaMe
+    
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
+    
+    if not context.args:
+        await update.message.reply_text("⚠️ استخدم: /setnick Vaibhav")
+        return
+    
+    NiCkNaMe = context.args[0][:7]
+    await update.message.reply_text(f"✅ تم تغيير بادئة الاسم إلى: {NiCkNaMe}")
+
+async def cmd_setpass(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global PaSsWoRd
+    
+    user_id = update.effective_user.id
+    if str(user_id) != str(ADMIN_ID):
+        await update.message.reply_text("❌ Admin only!")
+        return
+    
+    if not context.args:
+        await update.message.reply_text("⚠️ استخدم: /setpass Vaibhav")
+        return
+    
+    PaSsWoRd = context.args[0].upper()
+    await update.message.reply_text(f"✅ تم تغيير بادئة الباسورد إلى: {PaSsWoRd}")
+
+async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start(update, context)
+
+# ============================================================
+# MAIN
+# ============================================================
+
+import asyncio
+
+def main():
+    if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+        print("❌ قم بتعيين BOT_TOKEN في الكود!")
+        return
+    
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # الأوامر
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", cmd_help))
+    application.add_handler(CommandHandler("create", cmd_create))
+    application.add_handler(CommandHandler("stop", cmd_stop))
+    application.add_handler(CommandHandler("status", cmd_status))
+    application.add_handler(CommandHandler("export", cmd_export))
+    application.add_handler(CommandHandler("regions", cmd_regions))
+    application.add_handler(CommandHandler("setregion", cmd_setregion))
+    application.add_handler(CommandHandler("setnick", cmd_setnick))
+    application.add_handler(CommandHandler("setpass", cmd_setpass))
+    
+    print("🚀 Free Fire Account Creator Bot started!")
+    print(f"👨‍💻 Developer: Yacine Dz")
+    print(f"📍 Region: {ReGiOn}")
+    print(f"📝 Nickname: {NiCkNaMe}")
+    print(f"🔑 Password: {PaSsWoRd}")
+    
+    try:
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except KeyboardInterrupt:
+        print("\n👋 Bot stopped!")
+
+if __name__ == "__main__":
+    main()
