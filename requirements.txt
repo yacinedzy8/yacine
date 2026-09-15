@@ -1,8 +1,5 @@
-python-telegram-bot==20.6
-requests>=2.31.0
-stem>=1.8.2
-python-cfonts>=1.0.0
-pysocks>=1.7.1
-pycryptodome>=3.20.0
-urllib3>=2.2.0
-protobuf>=4.25.0
+# requirements.txt — pico_bot.py
+# Runtime: Python 3.11+
+
+aiogram>=3.4.0,<4.0.0
+requests>=2.31.0,<3.0.0
